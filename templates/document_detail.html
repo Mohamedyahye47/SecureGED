@@ -1,0 +1,102 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ document.title }} - GED Sécurisé{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8">
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0">📄 {{ document.title }}</h4>
+            </div>
+            <div class="card-body">
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <p><strong>Classification :</strong> 
+                            <span class="badge bg-secondary">
+                                {{ document.get_classification_level_display }}
+                            </span>
+                        </p>
+                        <p><strong>Statut :</strong> 
+                            <span class="badge bg-success">{{ document.get_status_display }}</span>
+                        </p>
+                        <p><strong>Type :</strong> {{ document.mime_type }}</p>
+                        <p><strong>Taille :</strong> {{ document.file_size|filesizeformat }}</p>
+                    </div>
+                    <div class="col-md-6">
+                        <p><strong>Téléchargé par :</strong> {{ document.uploaded_by.username }}</p>
+                        <p><strong>Date :</strong> {{ document.uploaded_at|date:"d/m/Y H:i" }}</p>
+                        <p><strong>Dernière modification :</strong> {{ document.last_modified|date:"d/m/Y H:i" }}</p>
+                        <p><strong>Hash SHA-256 :</strong><br>
+                            <small class="font-monospace">{{ document.file_hash|truncatechars:20 }}</small>
+                        </p>
+                    </div>
+                </div>
+
+                {% if document.description %}
+                <div class="mb-3">
+                    <strong>Description :</strong>
+                    <p>{{ document.description }}</p>
+                </div>
+                {% endif %}
+
+                <div class="alert alert-success">
+                    <strong>🔒 Sécurité :</strong> Ce document est chiffré avec AES-256
+                </div>
+
+                {% if can_download %}
+                <div class="d-grid gap-2">
+                    <a href="{% url 'document_download' document.id %}" 
+                       class="btn btn-primary btn-lg" target="_blank">
+                        📥 Visualiser le document (déchiffrement à la volée)
+                    </a>
+                </div>
+                {% else %}
+                <div class="alert alert-danger">
+                    ⛔ Vous n'avez pas l'habilitation nécessaire pour accéder à ce document
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0">📋 Logs d'accès récents</h5>
+            </div>
+            <div class="card-body">
+                {% if recent_logs %}
+                    <div class="list-group list-group-flush">
+                        {% for log in recent_logs %}
+                        <div class="list-group-item px-0">
+                            <div class="d-flex justify-content-between">
+                                <strong>{{ log.user.username }}</strong>
+                                <small class="text-muted">
+                                    {{ log.timestamp|date:"d/m H:i" }}
+                                </small>
+                            </div>
+                            <small>
+                                <span class="badge bg-{% if log.success %}success{% else %}danger{% endif %}">
+                                    {{ log.get_action_display }}
+                                </span>
+                            </small>
+                        </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <p class="text-muted">Aucun log disponible</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-3">
+    <div class="col-12">
+        <a href="{% url 'dashboard' %}" class="btn btn-outline-secondary">
+            ← Retour au tableau de bord
+        </a>
+    </div>
+</div>
+{% endblock %}

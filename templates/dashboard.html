@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+
+{% block title %}Tableau de bord - GED Sécurisé{% endblock %}
+
+{% block content %}
+<div class="row mb-5">
+    <div class="col-12 text-center text-white">
+        <h1 class="display-4 fw-bold mb-3">🔒 Bienvenue dans votre Coffre-Fort Numérique</h1>
+        <p class="lead">Système GED basé sur <strong>Défense en Profondeur</strong> et <strong>Zero Trust</strong></p>
+        <p>Confidentialité • Intégrité • Disponibilité • Non-Répudiation</p>
+    </div>
+</div>
+
+<!-- Aperçu des phases du Workflow -->
+<div class="row g-4">
+    <!-- Phase 1 : Portail -->
+    <div class="col-md-4">
+        <div class="card h-100 shadow-lg border-primary">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="fas fa-portal me-2"></i>1. Le Portail (Connexion)</h5>
+            </div>
+            <div class="card-body">
+                <ul class="list-unstyled">
+                    <li>✓ Authentification + MFA (2FA)</li>
+                    <li>✓ Protection brute force</li>
+                    <li>✓ Sessions durcies</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Phase 2 : Filtre d'Intégrité -->
+    <div class="col-md-4">
+        <div class="card h-100 shadow-lg border-success">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0"><i class="fas fa-filter me-2"></i>2. Filtre d'Intégrité (Ingestion)</h5>
+            </div>
+            <div class="card-body">
+                <ul class="list-unstyled">
+                    <li>✓ Quarantaine</li>
+                    <li>✓ Validation type (Magic Numbers)</li>
+                    <li>✓ Antivirus (ClamAV)</li>
+                    <li>✓ Hash SHA-256</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Phase 3 : Coffre-Fort -->
+    <div class="col-md-4">
+        <div class="card h-100 shadow-lg border-danger">
+            <div class="card-header bg-danger text-white">
+                <h5 class="mb-0"><i class="fas fa-vault me-2"></i>3. Le Coffre-Fort (Stockage)</h5>
+            </div>
+            <div class="card-body">
+                <ul class="list-unstyled">
+                    <li>✓ Chiffrement AES-256</li>
+                    <li>✓ Métadonnées chiffrées</li>
+                    <li>✓ Gestion des clés (KMS/Vault)</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Phase 4 : Règles -->
+    <div class="col-md-4">
+        <div class="card h-100 shadow-lg border-info">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0"><i class="fas fa-rules me-2"></i>4. Les Règles (Contrôle d'Accès)</h5>
+            </div>
+            <div class="card-body">
+                <ul class="list-unstyled">
+                    <li>✓ Permissions granulaires (OLP)</li>
+                    <li>✓ Moindre privilège</li>
+                    <li>✓ Classification documents</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Phase 5 : Vue Protégée -->
+    <div class="col-md-4">
+        <div class="card h-100 shadow-lg border-warning">
+            <div class="card-header bg-warning text-dark">
+                <h5 class="mb-0"><i class="fas fa-eye me-2"></i>5. La Vue Protégée (Affichage)</h5>
+            </div>
+            <div class="card-body">
+                <ul class="list-unstyled">
+                    <li>✓ Proxy sécurisé</li>
+                    <li>✓ Déchiffrement en RAM</li>
+                    <li>✓ Filigrane dynamique (optionnel)</li>
+                    <li>✓ Streaming HTTPS</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Phase 6 : Boîte Noire -->
+    <div class="col-md-4">
+        <div class="card h-100 shadow-lg border-dark">
+            <div class="card-header bg-dark text-white">
+                <h5 class="mb-0"><i class="fas fa-box me-2"></i>6. La Boîte Noire (Audit)</h5>
+            </div>
+            <div class="card-body">
+                <ul class="list-unstyled">
+                    <li>✓ Logs immuables</li>
+                    <li>✓ Signature PKI</li>
+                    <li>✓ Non-répudiation</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Section Illustrations -->
+<div class="row mt-5 text-center text-white">
+    <div class="col-12">
+        <h2 class="mb-4">Visualisation du Concept</h2>
+    </div>
+</div>
+{% endblock %}

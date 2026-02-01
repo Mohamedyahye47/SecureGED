@@ -1,0 +1,69 @@
+{% extends 'base.html' %}
+
+{% block title %}Upload - GED Sécurisé{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0">📤 Télécharger un document</h4>
+            </div>
+            <div class="card-body">
+                <form method="post" enctype="multipart/form-data">
+                    {% csrf_token %}
+                    
+                    <div class="mb-3">
+                        <label for="id_title" class="form-label">Titre du document *</label>
+                        {{ form.title }}
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="id_description" class="form-label">Description</label>
+                        {{ form.description }}
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="id_classification_level" class="form-label">
+                            Niveau de classification *
+                        </label>
+                        {{ form.classification_level }}
+                        <small class="form-text text-muted">
+                            Choisissez le niveau de confidentialité approprié
+                        </small>
+                    </div>
+
+                    <div class="mb-4">
+                        <label for="id_file" class="form-label">Fichier *</label>
+                        {{ form.file }}
+                        <small class="form-text text-muted">
+                            Formats acceptés : PDF, DOCX, DOC, JPG, PNG (Max 50MB)
+                        </small>
+                    </div>
+
+                    <div class="alert alert-info">
+                        <strong>🔒 Pipeline de sécurité :</strong>
+                        <ul class="mb-0 mt-2">
+                            <li>Validation du type de fichier (magic numbers)</li>
+                            <li>Sanitisation du nom de fichier</li>
+                            <li>Scan antivirus (détection de patterns)</li>
+                            <li>Calcul de hash SHA-256</li>
+                            <li>Chiffrement AES-256</li>
+                            <li>Stockage sécurisé</li>
+                        </ul>
+                    </div>
+
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary btn-lg">
+                            🔒 Télécharger de manière sécurisée
+                        </button>
+                        <a href="{% url 'dashboard' %}" class="btn btn-outline-secondary">
+                            Annuler
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,275 @@
+{% extends 'base.html' %}
+
+{% block title %}Connexion - GED Sécurisé{% endblock %}
+
+{% block content %}
+<style>
+    .login-container {
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 2rem 1rem;
+    }
+
+    .login-card {
+        background: rgba(30, 41, 59, 0.85);
+        backdrop-filter: blur(20px);
+        border: 1px solid rgba(148, 163, 184, 0.2);
+        border-radius: 20px;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+        overflow: hidden;
+        max-width: 480px;
+        width: 100%;
+        animation: fadeInUp 0.8s ease-out;
+    }
+
+    @keyframes fadeInUp {
+        from {
+            opacity: 0;
+            transform: translateY(40px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .login-header {
+        background: linear-gradient(135deg, #1e293b 0%, #334155 70%, #4c1d95 100%);
+        padding: 3rem 2rem 2.5rem;
+        text-align: center;
+        color: #e0e7ff;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .login-header::before {
+        content: '';
+        position: absolute;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background: radial-gradient(circle at top center, rgba(139, 92, 246, 0.15), transparent 70%);
+        pointer-events: none;
+    }
+
+    .lock-icon {
+        width: 100px;
+        height: 100px;
+        background: rgba(99, 102, 241, 0.3);
+        backdrop-filter: blur(10px);
+        border: 2px solid rgba(165, 180, 252, 0.4);
+        border-radius: 50%;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 3.5rem;
+        margin-bottom: 1.5rem;
+        animation: gentlePulse 3s infinite ease-in-out;
+    }
+
+    @keyframes gentlePulse {
+        0%, 100% { transform: scale(1); box-shadow: 0 0 20px rgba(99, 102, 241, 0.3); }
+        50% { transform: scale(1.05); box-shadow: 0 0 40px rgba(139, 92, 246, 0.5); }
+    }
+
+    .login-header h2 {
+        font-size: 2.2rem;
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+        color: #c7d2fe;
+    }
+
+    .login-header p {
+        color: #94a3b8;
+        font-size: 1.1rem;
+        margin: 0;
+    }
+
+    .login-body {
+        padding: 3rem 2.5rem;
+        color: #e2e8f0;
+    }
+
+    .form-floating {
+        margin-bottom: 1.5rem;
+    }
+
+    .form-floating > input {
+        background: rgba(51, 65, 85, 0.6);
+        border: 2px solid rgba(148, 163, 184, 0.3);
+        border-radius: 12px;
+        color: #f1f5f9;
+        height: 60px;
+        padding: 1rem 1.25rem;
+        transition: all 0.3s ease;
+    }
+
+    .form-floating > input:focus {
+        background: rgba(51, 65, 85, 0.8);
+        border-color: #818cf8;
+        box-shadow: 0 0 0 4px rgba(129, 140, 248, 0.2);
+        color: #ffffff;
+    }
+
+    .form-floating > label {
+        color: #94a3b8;
+        padding: 1rem 1.25rem;
+    }
+
+    .form-floating > input:focus ~ label,
+    .form-floating > input:not(:placeholder-shown) ~ label {
+        color: #a5b4fc;
+    }
+
+    .btn-login {
+        background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+        border: none;
+        border-radius: 12px;
+        padding: 1.1rem;
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: white;
+        width: 100%;
+        position: relative;
+        overflow: hidden;
+        transition: all 0.4s ease;
+        box-shadow: 0 8px 25px rgba(79, 70, 229, 0.4);
+    }
+
+    .btn-login:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 15px 35px rgba(124, 58, 237, 0.5);
+    }
+
+    .btn-login:active {
+        transform: translateY(0);
+    }
+
+    .security-info {
+        background: rgba(51, 65, 85, 0.5);
+        border: 1px solid rgba(148, 163, 184, 0.2);
+        border-radius: 14px;
+        padding: 1.5rem;
+        margin-top: 2rem;
+        font-size: 0.95rem;
+    }
+
+    .security-info-title {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        font-weight: 700;
+        color: #c7d2fe;
+        margin-bottom: 1rem;
+        font-size: 1.1rem;
+    }
+
+    .security-item {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        padding: 0.6rem 0;
+        color: #cbd5e1;
+    }
+
+    .security-item::before {
+        content: '✓';
+        width: 28px;
+        height: 28px;
+        background: linear-gradient(135deg, #4f46e5, #7c3aed);
+        color: white;
+        border-radius: 50%;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        font-size: 1rem;
+        flex-shrink: 0;
+    }
+
+    .footer-links {
+        text-align: center;
+        margin-top: 2rem;
+        padding-top: 1.5rem;
+        border-top: 1px solid rgba(148, 163, 184, 0.2);
+        color: #94a3b8;
+        font-size: 0.9rem;
+    }
+
+    .footer-links a {
+        color: #a5b4fc;
+        text-decoration: none;
+    }
+
+    .footer-links a:hover {
+        color: #c4b5fd;
+        text-decoration: underline;
+    }
+</style>
+
+<div class="login-container">
+    <div class="login-card">
+        <div class="login-header">
+            <div class="lock-icon">🔒</div>
+            <h2>Connexion Sécurisée</h2>
+            <p>Gestion Électronique de Documents</p>
+        </div>
+
+        <div class="login-body">
+            <form method="post" id="loginForm">
+                {% csrf_token %}
+
+                <div class="form-floating">
+                    {{ form.username }}
+                    <label for="id_username">👤 Nom d'utilisateur</label>
+                </div>
+
+                <div class="form-floating">
+                    {{ form.password }}
+                    <label for="id_password">🔑 Mot de passe</label>
+                </div>
+
+                <button type="submit" class="btn btn-login">
+                    <span id="btnText">Se connecter</span>
+                    <span id="btnLoader" style="display: none;">
+                        <span class="spinner-border spinner-border-sm me-2"></span>
+                        Connexion en cours...
+                    </span>
+                </button>
+            </form>
+
+            <div class="security-info">
+                <div class="security-info-title">
+                    <i class="fas fa-shield-alt"></i> Sécurité renforcée
+                </div>
+                <div class="security-item">
+                    Protection anti brute-force (5 tentatives max)
+                </div>
+                <div class="security-item">
+                    Verrouillage automatique pendant 15 minutes
+                </div>
+                <div class="security-item">
+                    Session chiffrée et sécurisée (AES-256)
+                </div>
+                <div class="security-item">
+                    Logs d'audit immuables
+                </div>
+            </div>
+
+            <div class="footer-links">
+                <small>
+                    Problème de connexion ? Contactez l'administrateur
+                </small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.getElementById('loginForm').addEventListener('submit', function() {
+        document.getElementById('btnText').style.display = 'none';
+        document.getElementById('btnLoader').style.display = 'inline';
+        this.querySelector('button[type="submit"]').disabled = true;
+    });
+</script>
+{% endblock %}
