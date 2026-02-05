@@ -1,3 +1,7 @@
+"""
+documents/staff_views.py - ✅ VERSION SIMPLIFIÉE SANS approved_by
+"""
+
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
@@ -5,7 +9,10 @@ from django.contrib import messages
 from django.core.mail import send_mail
 from django.conf import settings
 from django.views.decorators.http import require_POST
+from django.db import transaction
+
 from .models import UserProfile, Department, DepartmentMessage
+from .forms import StaffUserCreationForm
 
 
 # =========================================================
@@ -23,10 +30,9 @@ def pending_requests_view(request):
         messages.error(request, "Accès réservé aux responsables.")
         return redirect('dashboard')
 
-    # Liste des demandes PENDING du département
     pending_requests = UserProfile.objects.filter(
         department=staff_profile.department,
-        approval_status=UserProfile.ApprovalStatus.PENDING
+        approval_status='PENDING'
     ).select_related('user')
 
     return render(request, 'staff/pending_requests.html', {
@@ -36,12 +42,13 @@ def pending_requests_view(request):
 
 
 # =========================================================
-# 2. ACTIONS (APPROUVER) - ✅ CORRIGÉ
+# 2. APPROUVER UN UTILISATEUR (SIMPLIFIÉ)
 # =========================================================
 @login_required
 @require_POST
 def approve_user_view(request, user_id):
-    """✅ CORRECTION : Triple sécurité pour l'approbation"""
+    """✅ Approuve un utilisateur - TRIPLE SÉCURITÉ"""
+
     staff_profile = request.user.profile
     if not staff_profile.is_department_staff:
         return redirect('dashboard')
@@ -54,25 +61,18 @@ def approve_user_view(request, user_id):
         messages.error(request, "Cet utilisateur n'est pas lié à votre département.")
         return redirect('pending_requests')
 
-    # ✅ MÉTHODE 1 : Via Enum
-    target_profile.approval_status = UserProfile.ApprovalStatus.APPROVED
-    target_profile.approved_by = request.user
-    target_profile.save()
+    # ✅ TRIPLE SÉCURITÉ
+    with transaction.atomic():
+        # Méthode 1 : Via le profil
+        target_profile.approval_status = 'APPROVED'
+        target_profile.save()
 
-    # ✅ MÉTHODE 2 : Update SQL direct (sécurité supplémentaire)
-    UserProfile.objects.filter(user=target_user).update(
-        approval_status='APPROVED'
-    )
+        # Méthode 2 : Update SQL direct
+        UserProfile.objects.filter(user=target_user).update(
+            approval_status='APPROVED'
+        )
 
-    # ✅ MÉTHODE 3 : Vérification immédiate
-    target_profile.refresh_from_db()
-    if target_profile.approval_status != UserProfile.ApprovalStatus.APPROVED:
-        # Si ça a échoué, on force brutalement
-        target_profile.approval_status = UserProfile.ApprovalStatus.APPROVED
-        target_profile.save(update_fields=['approval_status'])
-
-    # ✅ Activation du compte utilisateur
-    if not target_user.is_active:
+        # Méthode 3 : Activation du compte
         target_user.is_active = True
         target_user.save()
 
@@ -83,12 +83,10 @@ def approve_user_view(request, user_id):
             subject="✅ Compte Validé - Secure GED",
             message=f"""Bonjour {target_user.first_name},
 
-Bonne nouvelle ! Votre compte a été validé par {request.user.get_full_name()}.
+Bonne nouvelle ! Votre compte a été validé.
 
 Département : {staff_profile.department.name}
-Vous pouvez maintenant accéder à tous les services de la plateforme GED.
-
-Connexion : {site_url}
+Vous pouvez maintenant vous connecter : {site_url}
 
 Cordialement,
 L'équipe SecureGED
@@ -97,20 +95,15 @@ L'équipe SecureGED
             recipient_list=[target_user.email],
             fail_silently=True
         )
-    except Exception as e:
-        # On ne bloque pas si l'email échoue
-        print(f"Erreur envoi email: {e}")
+    except Exception:
+        pass
 
-    messages.success(
-        request,
-        f"✅ Utilisateur {target_user.username} approuvé avec succès ! "
-        f"Il peut maintenant se connecter."
-    )
+    messages.success(request, f"✅ Utilisateur {target_user.username} approuvé avec succès !")
     return redirect('pending_requests')
 
 
 # =========================================================
-# 3. ACTIONS (REJETER)
+# 3. REJETER UN UTILISATEUR
 # =========================================================
 @login_required
 @require_POST
@@ -125,42 +118,20 @@ def reject_user_view(request, user_id):
     if target_profile.department != staff_profile.department:
         return redirect('pending_requests')
 
-    # Rejet
-    target_profile.approval_status = UserProfile.ApprovalStatus.REJECTED
-    target_profile.save()
+    with transaction.atomic():
+        target_profile.approval_status = 'REJECTED'
+        target_profile.save()
 
-    # Désactivation du compte
-    target_user.is_active = False
-    target_user.save()
-
-    # Email de notification
-    try:
-        send_mail(
-            subject="❌ Demande d'accès refusée - Secure GED",
-            message=f"""Bonjour {target_user.first_name},
-
-Votre demande d'accès au département {staff_profile.department.name} n'a pas été acceptée.
-
-Pour plus d'informations, veuillez contacter le responsable de votre département.
-
-Cordialement,
-L'équipe SecureGED
-""",
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=[target_user.email],
-            fail_silently=True
-        )
-    except Exception:
-        pass
+        target_user.is_active = False
+        target_user.save()
 
     messages.warning(request, f"❌ Utilisateur {target_user.username} rejeté.")
     return redirect('pending_requests')
 
 
 # =========================================================
-# 4. GESTION DÉPARTEMENT
+# 4. LISTE UTILISATEURS DU DÉPARTEMENT
 # =========================================================
-
 @login_required
 def department_users_view(request):
     profile = request.user.profile
@@ -169,15 +140,86 @@ def department_users_view(request):
 
     users = User.objects.filter(
         profile__department=profile.department
-    ).exclude(id=request.user.id).select_related('profile')
+    ).exclude(id=request.user.id).select_related('profile').order_by('-date_joined')
 
     return render(request, 'staff/department_users.html', {
         'department': profile.department,
-        'active_users': users.filter(profile__approval_status=UserProfile.ApprovalStatus.APPROVED),
-        'pending_users': users.filter(profile__approval_status=UserProfile.ApprovalStatus.PENDING)
+        'users': users,
     })
 
 
+# =========================================================
+# 5. CRÉER UN UTILISATEUR (✅ APPROUVÉ AUTOMATIQUEMENT)
+# =========================================================
+@login_required
+def create_department_user_view(request):
+    """
+    Permet au Staff de créer un utilisateur DIRECTEMENT APPROUVÉ.
+    PAS BESOIN D'APPROBATION MANUELLE APRÈS.
+    """
+    try:
+        staff_profile = request.user.profile
+        if not staff_profile.is_department_staff or not staff_profile.department:
+            messages.error(request, "Accès refusé.")
+            return redirect('dashboard')
+    except:
+        return redirect('dashboard')
+
+    if request.method == 'POST':
+        form = StaffUserCreationForm(request.POST)
+        if form.is_valid():
+            data = form.cleaned_data
+
+            try:
+                with transaction.atomic():
+                    # 1. Créer l'utilisateur Django
+                    new_user = User.objects.create_user(
+                        username=data['email'],  # Email comme username
+                        email=data['email'],
+                        password=data['password'],
+                        first_name=data['first_name'],
+                        last_name=data['last_name']
+                    )
+                    new_user.is_active = True  # ✅ Actif immédiatement
+                    new_user.save()
+
+                    # 2. Créer le profil (ou récupérer s'il existe)
+                    profile, created = UserProfile.objects.get_or_create(user=new_user)
+
+                    # 3. ✅ CONFIGURATION COMPLÈTE - APPROUVÉ DIRECTEMENT
+                    profile.department = staff_profile.department
+                    profile.approval_status = 'APPROVED'  # ✅ PAS DE PENDING !
+                    profile.is_department_staff = False
+                    profile.is_oauth_user = False
+                    profile.save()
+
+                    # 4. Double sécurité SQL
+                    UserProfile.objects.filter(user=new_user).update(
+                        approval_status='APPROVED',
+                        department=staff_profile.department
+                    )
+
+                messages.success(
+                    request,
+                    f"✅ Utilisateur {data['first_name']} {data['last_name']} créé et approuvé ! "
+                    f"Il peut se connecter immédiatement."
+                )
+                return redirect('admin_users')
+
+            except Exception as e:
+                messages.error(request, f"❌ Erreur technique : {e}")
+    else:
+        form = StaffUserCreationForm()
+
+    return render(request, 'staff_create_user.html', {
+        'form': form,
+        'department': staff_profile.department
+    })
+
+
+# =========================================================
+# 6. CONTACT & MESSAGERIE
+# =========================================================
 @login_required
 def contact_department_staff_view(request):
     profile = request.user.profile
@@ -261,26 +303,3 @@ def superuser_manage_staffs_view(request):
 
     staffs = User.objects.filter(profile__is_department_staff=True)
     return render(request, 'staff/superuser_manage_staffs.html', {'staffs': staffs})
-
-
-# =========================================================
-# 5. DEBUG (À SUPPRIMER EN PRODUCTION)
-# =========================================================
-def debug_db_view(request):
-    """Vue de diagnostic - À supprimer en production"""
-    from django.http import HttpResponse
-    from .models import UserProfile
-
-    html = "<h1>Diagnostic Global des Profils</h1><ul>"
-    all_profiles = UserProfile.objects.all().select_related('user', 'department')
-
-    for p in all_profiles:
-        html += f"""<li>
-            User: <b>{p.user.username}</b> | 
-            Statut en base: <span style="color:red">"{p.approval_status}"</span> | 
-            Département: {p.department.name if p.department else 'Aucun'} |
-            is_active: {p.user.is_active}
-        </li>"""
-
-    html += "</ul><p>Vérifiez si le statut est exactement 'APPROVED' (majuscules).</p>"
-    return HttpResponse(html)

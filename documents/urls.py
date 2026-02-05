@@ -4,7 +4,9 @@ documents/urls.py
 ✅ ROUTES SANS QUARANTAINE VISIBLE
 Le scan antivirus est automatique, pas d'interface de quarantaine
 """
-
+# documents/urls.py
+from django.urls import path
+from documents import staff_views # ou profile_views selon où vous avez mis la vue
 from django.urls import path
 from . import views, profile_views, auth_views, staff_views
 from .views import manage_users_view
@@ -95,4 +97,11 @@ path('staff/inbox/', staff_views.staff_inbox_view, name='staff_inbox'),
 
 path('staff/users/', profile_views.users_management_view, name='admin_users'),
     path('staff/users/create/', profile_views.create_user_view, name='admin_create_user'),
+
+path('staff/users/create/', staff_views.create_department_user_view, name='create_department_user'),
+
+path('staff/users/', staff_views.department_users_view, name='admin_users'),
+
 ]
+
+

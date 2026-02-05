@@ -3,7 +3,7 @@ import logging
 from pathlib import Path
 from datetime import datetime
 import csv
-
+from .forms import StaffUserCreationForm
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
@@ -520,25 +520,27 @@ def document_download_view(request, document_id):
 
 @login_required
 def audit_log_view(request):
-    profile = get_object_or_404(UserProfile, user=request.user)
+    """
+    Journal d'audit WORM
+    ✅ VERSION CORRIGÉE : Affiche TOUS les logs sans filtrage par département
+    """
+
+    try:
+        profile = request.user.profile
+    except:
+        messages.error(request, "Profil introuvable.")
+        return redirect('dashboard')
 
     # Sécurité : Seul le staff a accès
     if not profile.is_department_staff:
-        messages.error(request, "Accès non autorisé.")
+        messages.error(request, "Accès réservé aux responsables.")
         return redirect('dashboard')
 
-    # 1. Base : Logs concernant le département du staff
-    # On récupère les IDs des documents du département pour filtrer les logs associés
-    dept_docs = Document.objects.filter(department=profile.department)
-    doc_ids = [str(d.id) for d in dept_docs]
+    # ✅ CORRECTION : TOUS LES LOGS (sans filtre département)
+    logs = WORMAuditLog.objects.all().select_related('user').order_by('-timestamp')
 
-    logs = WORMAuditLog.objects.filter(
-        Q(user__profile__department=profile.department) |  # Actions des utilisateurs du dept
-        Q(document_id__in=doc_ids)  # Actions sur les docs du dept
-    ).order_by('-timestamp')
-
-    # 2. APPLICATION DES FILTRES (CORRECTION MAJEURE)
-    search_query = request.GET.get('search')
+    # Filtres utilisateur (recherche, action, etc.)
+    search_query = request.GET.get('search', '').strip()
     if search_query:
         logs = logs.filter(
             Q(user__username__icontains=search_query) |
@@ -546,32 +548,55 @@ def audit_log_view(request):
             Q(details__icontains=search_query)
         )
 
-    action = request.GET.get('action')
-    if action:
-        logs = logs.filter(action=action)
+    action_filter = request.GET.get('action', '').strip()
+    if action_filter:
+        logs = logs.filter(action=action_filter)
 
-    success = request.GET.get('success')
-    if success == 'true':
+    success_filter = request.GET.get('success', '').strip()
+    if success_filter == 'true':
         logs = logs.filter(success=True)
-    elif success == 'false':
+    elif success_filter == 'false':
         logs = logs.filter(success=False)
 
-    date_from = request.GET.get('date_from')
+    # Filtre par date
+    date_from = request.GET.get('date_from', '').strip()
     if date_from:
-        logs = logs.filter(timestamp__gte=date_from)
+        try:
+            from datetime import datetime
+            date_obj = datetime.strptime(date_from, '%Y-%m-%d')
+            logs = logs.filter(timestamp__gte=date_obj)
+        except:
+            pass
 
-    date_to = request.GET.get('date_to')
+    date_to = request.GET.get('date_to', '').strip()
     if date_to:
-        logs = logs.filter(timestamp__lte=date_to)
+        try:
+            from datetime import datetime
+            date_obj = datetime.strptime(date_to, '%Y-%m-%d')
+            # Inclure toute la journée
+            from datetime import timedelta
+            date_obj = date_obj + timedelta(days=1)
+            logs = logs.filter(timestamp__lt=date_obj)
+        except:
+            pass
 
-    # 3. Pagination
+    # Pagination
     paginator = Paginator(logs, 20)
-    page_number = request.GET.get('page')
+    page_number = request.GET.get('page', 1)
     page_obj = paginator.get_page(page_number)
 
-    return render(request, "staff/audit_log.html", {
-        "page_obj": page_obj,  # Le template attend page_obj maintenant
-    })
+    # Stats pour debug
+    total_logs = WORMAuditLog.objects.count()
+
+    context = {
+        "page_obj": page_obj,
+        "total_logs": total_logs,
+        "filtered_count": logs.count(),
+        "department": profile.department,
+    }
+
+    return render(request, "staff/audit_log.html", context)
+
 
 @login_required
 def manage_users_view(request):
@@ -616,3 +641,135 @@ def manage_users_view(request):
 
     # On renvoie vers le template spécifique (Vérifiez que ce fichier existe !)
     return render(request, 'staff/department_users.html', {'team_members': users})
+
+
+@login_required
+def department_users_view(request):
+    """
+    Affiche la liste des membres du département pour le Staff.
+    Remplace ou complète 'manage_users_view'.
+    """
+    try:
+        profile = request.user.profile
+        # Sécurité : Staff uniquement
+        if not profile.is_department_staff:
+            messages.error(request, "Accès réservé aux responsables.")
+            return redirect('dashboard')
+
+        department = profile.department
+        if not department:
+            messages.error(request, "Vous n'êtes assigné à aucun département.")
+            return redirect('dashboard')
+
+    except Exception:
+        return redirect('dashboard')
+
+    # Traitement des actions (Modifier, Supprimer, etc.)
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        user_id = request.POST.get('user_id')
+
+        try:
+            target_user = User.objects.get(id=user_id)
+            # SÉCURITÉ : On ne touche qu'aux gens de SON département
+            if target_user.profile.department == department:
+
+                if action == 'delete_user':
+                    # Si l'user a des documents, on désactive seulement
+                    if target_user.uploaded_documents.exists():
+                        target_user.is_active = False
+                        target_user.save()
+                        messages.warning(request, f"Compte {target_user.email} désactivé (archives conservées).")
+                    else:
+                        target_user.delete()
+                        messages.success(request, f"Utilisateur {target_user.email} supprimé.")
+
+                elif action == 'toggle_department_staff':
+                    # Promouvoir / Rétrograder
+                    target_profile = target_user.profile
+                    target_profile.is_department_staff = not target_profile.is_department_staff
+                    target_profile.save()
+                    status = "Responsable" if target_profile.is_department_staff else "Employé"
+                    messages.success(request, f"{target_user.email} est maintenant {status}.")
+
+                elif action == 'edit_user':
+                    target_user.first_name = request.POST.get('first_name')
+                    target_user.last_name = request.POST.get('last_name')
+                    target_user.email = request.POST.get('email')
+                    target_user.username = request.POST.get('email')  # Sync username/email
+                    target_user.save()
+                    messages.success(request, "Informations mises à jour.")
+
+                elif action == 'activate_user':
+                    target_user.is_active = True
+                    target_user.save()
+                    messages.success(request, "Compte réactivé.")
+            else:
+                messages.error(request, "Action non autorisée sur cet utilisateur.")
+
+        except User.DoesNotExist:
+            messages.error(request, "Utilisateur introuvable.")
+
+        return redirect('department_users_list')
+
+    # Récupération de la liste
+    users = User.objects.filter(
+        profile__department=department,
+        is_superuser=False
+    ).select_related('profile').order_by('-date_joined')
+
+    return render(request, 'department_users.html', {  # Assurez-vous que le template est department_users.html
+        'department': department,
+        'users': users
+    })
+
+
+@login_required
+def create_department_user_view(request):
+    """
+    Permet au Staff de créer un utilisateur directement dans son département.
+    """
+    # 1. Sécurité
+    try:
+        staff_profile = request.user.profile
+        if not staff_profile.is_department_staff or not staff_profile.department:
+            messages.error(request, "Accès refusé.")
+            return redirect('dashboard')
+    except:
+        return redirect('dashboard')
+
+    if request.method == 'POST':
+        form = StaffUserCreationForm(request.POST)
+        if form.is_valid():
+            data = form.cleaned_data
+
+            try:
+                # 2. Création User Django
+                new_user = User.objects.create_user(
+                    username=data['email'],
+                    email=data['email'],
+                    password=data['password'],
+                    first_name=data['first_name'],
+                    last_name=data['last_name']
+                )
+                new_user.is_active = True
+                new_user.save()
+
+                # 3. Création Profil (Approuvé + Même département)
+                UserProfile.objects.create(
+                    user=new_user,
+                    department=staff_profile.department,
+                    approval_status='APPROVED',  # Approuvé direct !
+                    is_department_staff=False,
+                    is_oauth_user=False
+                )
+
+                messages.success(request, f"✅ Utilisateur {data['first_name']} créé avec succès.")
+                return redirect('department_users_list')
+
+            except Exception as e:
+                messages.error(request, f"Erreur : {e}")
+    else:
+        form = StaffUserCreationForm()
+
+    return render(request, 'staff_create_user.html', {'form': form})

@@ -216,9 +216,8 @@ def create_user_view(request):
                     user=user,
                     department=target_department,
                     is_department_staff=is_creating_staff,
-                    phone="",
-                    approval_status=status_approved,  # <--- CLÉ DU SUCCÈS
-                    approved_by=request.user
+                    approval_status=status_approved,  # ✅ Ce champ existe
+                    is_oauth_user=False  # ✅ Bonne pratique
                 )
 
                 # C. Notification Email
