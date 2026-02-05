@@ -1,0 +1,38 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">Répondre à {{ recipient.get_full_name }}</h4>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-secondary mb-4">
+                        <strong>Message original :</strong><br>
+                        <em>{{ original_msg.get_decrypted_message }}</em>
+                    </div>
+
+                    <form method="post">
+                        {% csrf_token %}
+                        <div class="mb-3">
+                            <label>Sujet</label>
+                            <input type="text" name="subject" class="form-control" value="{{ default_subject }}" required>
+                        </div>
+                        <div class="mb-3">
+                            <label>Votre réponse</label>
+                            <textarea name="message" class="form-control" rows="6" required></textarea>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <a href="{% url 'staff_inbox' %}" class="btn btn-secondary">Annuler</a>
+                            <button type="submit" class="btn btn-success">
+                                <i class="fas fa-paper-plane me-2"></i>Envoyer la réponse
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

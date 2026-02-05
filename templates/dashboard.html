@@ -3,119 +3,152 @@
 {% block title %}Tableau de bord - GED Sécurisé{% endblock %}
 
 {% block content %}
-<div class="row mb-5">
-    <div class="col-12 text-center text-white">
-        <h1 class="display-4 fw-bold mb-3">🔒 Bienvenue dans votre Coffre-Fort Numérique</h1>
-        <p class="lead">Système GED basé sur <strong>Défense en Profondeur</strong> et <strong>Zero Trust</strong></p>
-        <p>Confidentialité • Intégrité • Disponibilité • Non-Répudiation</p>
-    </div>
-</div>
 
-<!-- Aperçu des phases du Workflow -->
-<div class="row g-4">
-    <!-- Phase 1 : Portail -->
+<div class="row g-4 mb-4">
     <div class="col-md-4">
-        <div class="card h-100 shadow-lg border-primary">
-            <div class="card-header bg-primary text-white">
-                <h5 class="mb-0"><i class="fas fa-portal me-2"></i>1. Le Portail (Connexion)</h5>
-            </div>
-            <div class="card-body">
-                <ul class="list-unstyled">
-                    <li>✓ Authentification + MFA (2FA)</li>
-                    <li>✓ Protection brute force</li>
-                    <li>✓ Sessions durcies</li>
-                </ul>
+        <div class="card h-100 border-0 shadow-sm">
+            <div class="card-body d-flex align-items-center">
+                <div class="flex-shrink-0 bg-primary bg-opacity-10 p-3 rounded-4 text-primary">
+                    <i class="fas fa-file-upload fa-2x"></i>
+                </div>
+                <div class="ms-3">
+                    <h6 class="text-muted text-uppercase small fw-bold mb-1">Nouveau</h6>
+                    <a href="{% url 'document_upload' %}" class="stretched-link h5 fw-bold text-decoration-none text-dark">Déposer un document</a>
+                </div>
             </div>
         </div>
     </div>
-
-    <!-- Phase 2 : Filtre d'Intégrité -->
     <div class="col-md-4">
-        <div class="card h-100 shadow-lg border-success">
-            <div class="card-header bg-success text-white">
-                <h5 class="mb-0"><i class="fas fa-filter me-2"></i>2. Filtre d'Intégrité (Ingestion)</h5>
-            </div>
-            <div class="card-body">
-                <ul class="list-unstyled">
-                    <li>✓ Quarantaine</li>
-                    <li>✓ Validation type (Magic Numbers)</li>
-                    <li>✓ Antivirus (ClamAV)</li>
-                    <li>✓ Hash SHA-256</li>
-                </ul>
+        <div class="card h-100 border-0 shadow-sm">
+            <div class="card-body d-flex align-items-center">
+                <div class="flex-shrink-0 bg-success bg-opacity-10 p-3 rounded-4 text-success">
+                    <i class="fas fa-user-shield fa-2x"></i>
+                </div>
+                <div class="ms-3">
+                    <h6 class="text-muted text-uppercase small fw-bold mb-1">Mon Habilitation</h6>
+                    <span class="h5 fw-bold text-dark">{{ clearance_level }}</span>
+                </div>
             </div>
         </div>
     </div>
-
-    <!-- Phase 3 : Coffre-Fort -->
     <div class="col-md-4">
-        <div class="card h-100 shadow-lg border-danger">
-            <div class="card-header bg-danger text-white">
-                <h5 class="mb-0"><i class="fas fa-vault me-2"></i>3. Le Coffre-Fort (Stockage)</h5>
-            </div>
-            <div class="card-body">
-                <ul class="list-unstyled">
-                    <li>✓ Chiffrement AES-256</li>
-                    <li>✓ Métadonnées chiffrées</li>
-                    <li>✓ Gestion des clés (KMS/Vault)</li>
-                </ul>
-            </div>
-        </div>
-    </div>
-
-    <!-- Phase 4 : Règles -->
-    <div class="col-md-4">
-        <div class="card h-100 shadow-lg border-info">
-            <div class="card-header bg-info text-white">
-                <h5 class="mb-0"><i class="fas fa-rules me-2"></i>4. Les Règles (Contrôle d'Accès)</h5>
-            </div>
-            <div class="card-body">
-                <ul class="list-unstyled">
-                    <li>✓ Permissions granulaires (OLP)</li>
-                    <li>✓ Moindre privilège</li>
-                    <li>✓ Classification documents</li>
-                </ul>
-            </div>
-        </div>
-    </div>
-
-    <!-- Phase 5 : Vue Protégée -->
-    <div class="col-md-4">
-        <div class="card h-100 shadow-lg border-warning">
-            <div class="card-header bg-warning text-dark">
-                <h5 class="mb-0"><i class="fas fa-eye me-2"></i>5. La Vue Protégée (Affichage)</h5>
-            </div>
-            <div class="card-body">
-                <ul class="list-unstyled">
-                    <li>✓ Proxy sécurisé</li>
-                    <li>✓ Déchiffrement en RAM</li>
-                    <li>✓ Filigrane dynamique (optionnel)</li>
-                    <li>✓ Streaming HTTPS</li>
-                </ul>
-            </div>
-        </div>
-    </div>
-
-    <!-- Phase 6 : Boîte Noire -->
-    <div class="col-md-4">
-        <div class="card h-100 shadow-lg border-dark">
-            <div class="card-header bg-dark text-white">
-                <h5 class="mb-0"><i class="fas fa-box me-2"></i>6. La Boîte Noire (Audit)</h5>
-            </div>
-            <div class="card-body">
-                <ul class="list-unstyled">
-                    <li>✓ Logs immuables</li>
-                    <li>✓ Signature PKI</li>
-                    <li>✓ Non-répudiation</li>
-                </ul>
+        <div class="card h-100 border-0 shadow-sm">
+            <div class="card-body d-flex align-items-center">
+                <div class="flex-shrink-0 bg-info bg-opacity-10 p-3 rounded-4 text-info">
+                    <i class="fas fa-database fa-2x"></i>
+                </div>
+                <div class="ms-3">
+                    <h6 class="text-muted text-uppercase small fw-bold mb-1">Total Accessible</h6>
+                    <span class="h5 fw-bold text-dark">{{ total_accessible }} Fichiers</span>
+                </div>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Section Illustrations -->
-<div class="row mt-5 text-center text-white">
+{% if is_staff %}
+<div class="row mb-4">
     <div class="col-12">
-        <h2 class="mb-4">Visualisation du Concept</h2>
+        <div class="card bg-dark text-white overflow-hidden shadow-sm">
+            <div class="card-body p-4 position-relative">
+                <div class="d-flex justify-content-between align-items-center position-relative z-1">
+                    <div>
+                        <h4 class="fw-bold mb-1"><i class="fas fa-user-secret me-2"></i>Zone d'Administration</h4>
+                        <p class="text-white-50 mb-0">Gestion de la sécurité et audit.</p>
+                    </div>
+                    <div class="d-flex gap-2">
+
+                        <a href="{% url 'audit_log' %}" class="btn btn-outline-light">
+                            <i class="fas fa-list-alt me-2"></i>Logs d'Audit
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
+{% endif %}
+
+<div class="row g-4">
+
+    <div class="col-lg-6">
+        <div class="card h-100 border-0 shadow-sm">
+            <div class="card-header bg-white border-bottom py-3">
+                <h5 class="fw-bold mb-0 text-primary">
+                    <i class="fas fa-folder-user me-2"></i>Mes Documents
+                </h5>
+            </div>
+            <div class="card-body p-0">
+                {% if user_documents %}
+                <div class="list-group list-group-flush">
+                    {% for doc in user_documents %}
+                    <a href="{% url 'document_detail' doc.id %}" class="list-group-item list-group-item-action py-3">
+                        <div class="d-flex w-100 justify-content-between align-items-center mb-1">
+                            <strong class="text-dark">{{ doc.title }}</strong>
+                            <small class="text-muted">{{ doc.uploaded_at|date:"d/m/Y" }}</small>
+                        </div>
+                        <div class="d-flex align-items-center justify-content-between">
+                            <div>
+                                {% if doc.classification_level == 1 %}<span class="badge bg-success bg-opacity-10 text-success">Public</span>
+                                {% elif doc.classification_level == 2 %}<span class="badge bg-info bg-opacity-10 text-info">Interne</span>
+                                {% elif doc.classification_level == 3 %}<span class="badge bg-warning bg-opacity-10 text-warning">Confidentiel</span>
+                                {% else %}<span class="badge bg-danger bg-opacity-10 text-danger">Secret</span>{% endif %}
+                            </div>
+                            <span class="badge bg-light text-dark border">{{ doc.get_status_display }}</span>
+                        </div>
+                    </a>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="text-center py-5 text-muted">
+                    <i class="fas fa-cloud-upload-alt fa-3x mb-3 opacity-25"></i>
+                    <p>Vous n'avez pas encore déposé de documents.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-6">
+        <div class="card h-100 border-0 shadow-sm">
+            <div class="card-header bg-white border-bottom py-3">
+                <h5 class="fw-bold mb-0 text-secondary">
+                    <i class="fas fa-network-wired me-2"></i>Documents Accessibles
+                </h5>
+            </div>
+            <div class="card-body p-0">
+                {% if accessible_documents %}
+                <div class="list-group list-group-flush">
+                    {% for doc in accessible_documents %}
+                    <a href="{% url 'document_detail' doc.id %}" class="list-group-item list-group-item-action py-3">
+                        <div class="d-flex w-100 justify-content-between align-items-center mb-1">
+                            <div class="d-flex align-items-center">
+                                <i class="far fa-file-alt me-3 text-secondary fa-lg"></i>
+                                <div>
+                                    <strong class="text-dark d-block">{{ doc.title }}</strong>
+                                    <small class="text-muted">Par {{ doc.uploaded_by.username }}</small>
+                                </div>
+                            </div>
+                            <i class="fas fa-chevron-right text-muted opacity-25"></i>
+                        </div>
+                        <div class="mt-2 ms-4 ps-2">
+                             {% if doc.classification_level == 1 %}<span class="badge bg-success bg-opacity-10 text-success">Public</span>
+                             {% elif doc.classification_level == 2 %}<span class="badge bg-info bg-opacity-10 text-info">Interne</span>
+                             {% elif doc.classification_level == 3 %}<span class="badge bg-warning bg-opacity-10 text-warning">Confidentiel</span>
+                             {% else %}<span class="badge bg-danger bg-opacity-10 text-danger">Secret</span>{% endif %}
+                        </div>
+                    </a>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="text-center py-5 text-muted">
+                    <i class="fas fa-lock fa-3x mb-3 opacity-25"></i>
+                    <p>Aucun document partagé accessible pour votre niveau ({{ clearance_level }}).</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
 {% endblock %}

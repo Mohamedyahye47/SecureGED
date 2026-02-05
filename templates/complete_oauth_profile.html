@@ -1,0 +1,179 @@
+{% extends 'base.html' %}
+
+{% block title %}Compléter votre profil{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-6 col-md-8">
+            
+            {# En-tête #}
+            <div class="text-center mb-5">
+                <div class="bg-primary bg-opacity-10 text-primary rounded-circle d-inline-flex align-items-center justify-content-center mb-3" 
+                     style="width: 80px; height: 80px;">
+                    <i class="fas fa-user-edit fa-2x"></i>
+                </div>
+                <h2 class="fw-bold mb-2">Bienvenue {{ user.first_name|default:user.email }} !</h2>
+                <p class="text-muted">
+                    Pour accéder au système GED sécurisé, veuillez compléter votre profil.
+                </p>
+            </div>
+
+            {# Formulaire #}
+            <div class="card border-0 shadow-sm">
+                <div class="card-body p-4">
+                    <form method="post">
+                        {% csrf_token %}
+
+                        {# Étape 1 : Informations personnelles #}
+                        <div class="mb-4">
+                            <h5 class="fw-bold mb-3">
+                                <span class="badge bg-primary rounded-circle me-2">1</span>
+                                Informations personnelles
+                            </h5>
+                            
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="form-label fw-medium">
+                                        Prénom <span class="text-danger">*</span>
+                                    </label>
+                                    <input type="text" 
+                                           name="first_name" 
+                                           class="form-control"
+                                           value="{{ user.first_name }}"
+                                           required
+                                           placeholder="Votre prénom">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-medium">
+                                        Nom <span class="text-danger">*</span>
+                                    </label>
+                                    <input type="text" 
+                                           name="last_name" 
+                                           class="form-control"
+                                           value="{{ user.last_name }}"
+                                           required
+                                           placeholder="Votre nom">
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label fw-medium">Email (Google)</label>
+                                    <input type="email" 
+                                           class="form-control bg-light" 
+                                           value="{{ user.email }}" 
+                                           readonly>
+                                    <small class="text-muted">
+                                        <i class="fab fa-google me-1"></i>
+                                        Cet email est lié à votre compte Google
+                                    </small>
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label fw-medium">Téléphone (optionnel)</label>
+                                    <input type="tel" 
+                                           name="phone" 
+                                           class="form-control"
+                                           value="{{ profile.phone }}"
+                                           placeholder="+222 XX XX XX XX">
+                                </div>
+                            </div>
+                        </div>
+
+                        <hr class="my-4">
+
+                        {# Étape 2 : Département #}
+                        <div class="mb-4">
+                            <h5 class="fw-bold mb-3">
+                                <span class="badge bg-primary rounded-circle me-2">2</span>
+                                Département
+                            </h5>
+                            
+                            <label class="form-label fw-medium">
+                                Choisissez votre département <span class="text-danger">*</span>
+                            </label>
+                            <select name="department" 
+                                    class="form-select"
+                                    required
+                                    id="department-select">
+                                <option value="">-- Sélectionner un département --</option>
+                                {% for dept in departments %}
+                                <option value="{{ dept.id }}"
+                                        {% if profile.pending_department_id == dept.id %}selected{% endif %}>
+                                    {{ dept.name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                            
+                            <div class="alert alert-info bg-info bg-opacity-10 border-0 mt-3">
+                                <i class="fas fa-info-circle me-2"></i>
+                                <small>
+                                    <strong>Important :</strong> Votre demande sera examinée par le responsable 
+                                    du département que vous choisissez. Choisissez le département auquel vous appartenez.
+                                </small>
+                            </div>
+                        </div>
+
+                        <hr class="my-4">
+
+                        {# Étape 3 : Validation #}
+                        <div class="mb-4">
+                            <h5 class="fw-bold mb-3">
+                                <span class="badge bg-primary rounded-circle me-2">3</span>
+                                Validation
+                            </h5>
+                            
+                            <div class="alert alert-warning bg-warning bg-opacity-10 border-0">
+                                <i class="fas fa-clock me-2"></i>
+                                <strong>Prochaine étape :</strong>
+                                <p class="mb-0 small mt-2">
+                                    Après validation de ce formulaire, votre demande sera envoyée au 
+                                    <strong>responsable du département</strong> choisi. Vous recevrez une 
+                                    notification dès que votre compte sera activé.
+                                </p>
+                            </div>
+                        </div>
+
+                        {# Bouton de soumission #}
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="fas fa-paper-plane me-2"></i>
+                                Envoyer ma demande
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            {# Info de sécurité #}
+            <div class="text-center mt-4">
+                <small class="text-muted">
+                    <i class="fas fa-shield-alt me-1"></i>
+                    Vos informations sont sécurisées et ne seront partagées qu'avec 
+                    votre département.
+                </small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Animation du formulaire
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.querySelector('form');
+    const submitBtn = form.querySelector('button[type="submit"]');
+    
+    form.addEventListener('submit', function() {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Envoi en cours...';
+    });
+    
+    // Highlight du département sélectionné
+    const departmentSelect = document.getElementById('department-select');
+    departmentSelect.addEventListener('change', function() {
+        if (this.value) {
+            this.classList.add('border-primary');
+        } else {
+            this.classList.remove('border-primary');
+        }
+    });
+});
+</script>
+{% endblock %}

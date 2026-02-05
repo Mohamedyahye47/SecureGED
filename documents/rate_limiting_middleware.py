@@ -47,32 +47,77 @@ class ProgressiveRateLimitMiddleware:
         cache_key = f"login_attempts_{client_ip}"
         
         # Get current attempt count from cache
-        attempt_data = cache.get(cache_key, {'count': 0, 'first_attempt': time.time()})
-        current_count = attempt_data['count']
-        first_attempt_time = attempt_data['first_attempt']
-        
-        # Check if we're still within the rate limit window
-        if time.time() - first_attempt_time > self.window:
-            # Window expired, reset counter
-            attempt_data = {'count': 1, 'first_attempt': time.time()}
-            cache.set(cache_key, attempt_data, self.window)
-            return
-        
-        # Increment attempt counter
-        attempt_data['count'] += 1
-        cache.set(cache_key, attempt_data, self.window)
-        
-        # Calculate delay based on attempts
-        if current_count >= self.login_attempts_attempts:
-            delay = min(
-                self.delay_base * (2 ** (current_count - self.login_attempts_attempts)),
-                self.delay_max
-            )
-            logger.warning(
-                f"Progressive rate limit triggered for {client_ip}: "
-                f"{current_count} attempts, applying {delay}s delay"
-            )
-            time.sleep(delay)
+        #attempt_data = cache.get(cache_key, {'count': 0, 'first_attempt': time.time()})
+        # rate_limiting_middleware.py - REFACTORING COMPLET
+        from django.core.cache import cache
+        from django.http import HttpResponse
+        import time
+
+        class ProgressiveRateLimitMiddleware:
+            def __init__(self, get_response):
+                self.get_response = get_response
+                self.attempts_threshold = 3
+                self.delay_base = 2  # secondes
+                self.delay_max = 300  # 5 minutes
+                self.window = 900  # 15 minutes
+
+            def __call__(self, request):
+                if request.path in ['/login/', '/'] and request.method == 'POST':
+                    if not self._check_rate_limit(request):
+                        return HttpResponse(
+                            "Trop de tentatives. Réessayez plus tard.",
+                            status=429
+                        )
+
+                return self.get_response(request)
+
+            def _check_rate_limit(self, request):
+                """Retourne False si rate limit dépassée"""
+                client_ip = self._get_client_ip(request)
+                username = request.POST.get('username', '')
+
+                # Clé combinée IP + username
+                cache_key = f"login_rl:{client_ip}:{username}"
+
+                attempts = cache.get(cache_key, {'count': 0, 'first': time.time()})
+
+                now = time.time()
+
+                # Reset si fenêtre expirée
+                if now - attempts['first'] > self.window:
+                    attempts = {'count': 1, 'first': now}
+                    cache.set(cache_key, attempts, self.window)
+                    return True
+
+                # Incrémenter AVANT vérification
+                attempts['count'] += 1
+                cache.set(cache_key, attempts, self.window)
+
+                # Calculer délai (exponentiel)
+                if attempts['count'] > self.attempts_threshold:
+                    delay = min(
+                        self.delay_base ** (attempts['count'] - self.attempts_threshold),
+                        self.delay_max
+                    )
+
+                    # NE PAS BLOQUER - stocker le timestamp de déblocage
+                    unlock_key = f"login_unlock:{cache_key}"
+                    unlock_time = now + delay
+                    cache.set(unlock_key, unlock_time, self.delay_max)
+
+                    logger.warning(
+                        f"Rate limit: {client_ip}/{username} - "
+                        f"{attempts['count']} tentatives, bloqué {delay}s"
+                    )
+                    return False
+
+                return True
+
+            def _get_client_ip(self, request):
+                x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+                if x_forwarded_for:
+                    return x_forwarded_for.split(',')[0].strip()
+                return request.META.get('REMOTE_ADDR', 'unknown')
     
     def _get_client_ip(self, request):
         """Extract client IP from request."""

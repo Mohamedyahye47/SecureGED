@@ -1,0 +1,153 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Demandes en attente{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="fw-bold mb-1">
+                <i class="fas fa-user-clock me-2"></i>
+                Demandes d'inscription
+            </h2>
+            <p class="text-muted mb-0">
+                Gérez les demandes pour le département :
+                <strong>{{ department.name }}</strong>
+            </p>
+        </div>
+
+        <span class="badge bg-primary rounded-pill px-3 py-2">
+            <i class="fas fa-clock me-2"></i>
+            {{ pending_requests|length }} en attente
+        </span>
+    </div>
+
+    {% if pending_requests %}
+    <div class="row g-4">
+        {% for request_profile in pending_requests %}
+        <div class="col-md-6 col-lg-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <div class="d-flex align-items-start mb-3">
+                        <div class="avatar bg-primary text-white me-3 d-flex align-items-center justify-content-center rounded-circle" style="width: 50px; height: 50px; font-size: 1.2rem;">
+                            {{ request_profile.user.first_name|slice:":1"|upper|default:"U" }}
+                        </div>
+                        <div class="flex-grow-1">
+                            <h5 class="fw-bold mb-1">
+                                {{ request_profile.user.get_full_name|default:request_profile.user.username }}
+                            </h5>
+                            <p class="text-muted small mb-0">
+                                {{ request_profile.user.email }}
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <div class="d-flex align-items-center text-muted small mb-2">
+                            <i class="fas fa-building me-2"></i>
+                            <strong>Département :</strong>
+                            <span class="ms-auto">{{ request_profile.department.name }}</span>
+                        </div>
+
+                        <div class="d-flex align-items-center text-muted small">
+                            <i class="fas fa-calendar me-2"></i>
+                            <strong>Demandé le :</strong>
+                            <span class="ms-auto">{{ request_profile.user.date_joined|date:"d/m/Y H:i" }}</span>
+                        </div>
+                    </div>
+
+                    <div class="alert alert-warning bg-warning bg-opacity-10 border-0 mb-3 py-2">
+                        <i class="fas fa-info-circle me-2"></i>
+                        <small>En attente de validation</small>
+                    </div>
+
+                    <div class="d-grid gap-2">
+                        <button type="button"
+                                class="btn btn-success btn-sm"
+                                data-bs-toggle="modal"
+                                data-bs-target="#approveModal{{ request_profile.user.id }}">
+                            <i class="fas fa-check me-2"></i>Approuver
+                        </button>
+                        <button type="button"
+                                class="btn btn-danger btn-sm"
+                                data-bs-toggle="modal"
+                                data-bs-target="#rejectModal{{ request_profile.user.id }}">
+                            <i class="fas fa-times me-2"></i>Rejeter
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal fade" id="approveModal{{ request_profile.user.id }}" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header bg-success bg-opacity-10">
+                        <h5 class="modal-title text-success">
+                            <i class="fas fa-check-circle me-2"></i>Confirmer l'approbation
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p>Voulez-vous valider l'accès pour <strong>{{ request_profile.user.get_full_name }}</strong> ?</p>
+                        <div class="alert alert-light border">
+                            <small class="text-muted d-block">Email : {{ request_profile.user.email }}</small>
+                            <small class="text-muted d-block">Département : {{ request_profile.department.name }}</small>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                        <form action="{% url 'approve_user' request_profile.user.id %}" method="post">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-success">Valider l'utilisateur</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal fade" id="rejectModal{{ request_profile.user.id }}" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header bg-danger bg-opacity-10">
+                        <h5 class="modal-title text-danger">
+                            <i class="fas fa-times-circle me-2"></i>Rejeter la demande
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <form action="{% url 'reject_user' request_profile.user.id %}" method="post">
+                        {% csrf_token %}
+                        <div class="modal-body">
+                            <p>Vous êtes sur le point de rejeter <strong>{{ request_profile.user.get_full_name }}</strong>.</p>
+                            <div class="mb-3">
+                                <label for="reason" class="form-label">Motif du refus (optionnel)</label>
+                                <textarea class="form-control" name="reason" rows="3" placeholder="Expliquez pourquoi..."></textarea>
+                            </div>
+                            <div class="alert alert-danger py-2">
+                                <small><i class="fas fa-exclamation-triangle me-1"></i> Cette action désactivera le compte.</small>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                            <button type="submit" class="btn btn-danger">Confirmer le rejet</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="card border-0 shadow-sm text-center py-5 mt-4">
+        <div class="card-body">
+            <div class="mb-3 text-success opacity-50">
+                <i class="fas fa-check-circle fa-4x"></i>
+            </div>
+            <h4 class="fw-bold">Aucune demande en attente</h4>
+            <p class="text-muted">Tout est à jour pour le département {{ department.name }}.</p>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

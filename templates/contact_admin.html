@@ -1,0 +1,86 @@
+{% extends 'base.html' %}
+
+{% block title %}Messagerie{% endblock %}
+
+{% block content %}
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<style>
+    /* Ajustement visuel pour l'input de recherche */
+    .select2-container .select2-selection--single {
+        height: 45px;
+        padding: 8px;
+        border: 1px solid #dee2e6;
+        border-radius: 6px;
+    }
+    .select2-container--default .select2-selection--single .select2-selection__arrow {
+        height: 42px;
+    }
+</style>
+
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card shadow-sm border-0">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="fas fa-paper-plane me-2"></i>Nouveau Message</h5>
+            </div>
+            <div class="card-body p-4">
+
+                <form method="post">
+                    {% csrf_token %}
+
+                    <div class="mb-4">
+                        <label class="form-label fw-bold">Destinataire</label>
+                        <select class="form-select" name="recipient" id="userSearch" required>
+                            <option value="">-- Rechercher un collègue (Tapez un nom) --</option>
+                            {% for u in users %}
+                                <option value="{{ u.id }}">
+                                    {{ u.last_name|upper }} {{ u.first_name|capfirst }}
+                                    ({{ u.username }} - {{ u.profile.department.name|default:"Sans département" }})
+                                </option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text text-muted">Tapez le nom, le prénom ou le département pour filtrer.</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Sujet</label>
+                        <input type="text" name="subject" class="form-control" placeholder="Ex: Question sur le dossier X..." required>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label fw-bold">Message</label>
+                        <textarea name="message" class="form-control" rows="5" placeholder="Votre message..." required></textarea>
+                    </div>
+
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary py-2">
+                            <i class="fas fa-paper-plane me-2"></i>Envoyer le message
+                        </button>
+                    </div>
+                </form>
+
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
+<script>
+    $(document).ready(function() {
+        // Transformation du Select en barre de recherche
+        $('#userSearch').select2({
+            placeholder: "Rechercher un collègue...",
+            allowClear: true,
+            width: '100%', // S'adapte à la largeur du parent
+            language: {
+                noResults: function() {
+                    return "Aucun utilisateur trouvé";
+                }
+            }
+        });
+    });
+</script>
+
+{% endblock %}

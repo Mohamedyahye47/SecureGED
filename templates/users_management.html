@@ -1,0 +1,210 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Gestion de l'équipe{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="fw-bold mb-1">
+                <i class="fas fa-users-cog me-2"></i>Gestion de l'équipe
+            </h2>
+            <p class="text-muted mb-0">Département : <strong>{{ department.name }}</strong></p>
+        </div>
+
+        <a href="{% url 'admin_create_user' %}" class="btn btn-primary shadow-sm">
+            <i class="fas fa-user-plus me-2"></i>Ajouter un membre
+        </a>
+    </div>
+
+    <div class="card border-0 shadow-sm">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="bg-light">
+                        <tr>
+                            <th class="ps-4">Membre</th>
+                            <th>Rôle</th>
+                            <th>Statut</th>
+                            <th>Date d'arrivée</th>
+                            <th class="text-end pe-4">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for user in users %}
+                        {% if user.id != request.user.id %}
+                        <tr class="{% if not user.is_active %}table-secondary opacity-75{% endif %}">
+                            <td class="ps-4">
+                                <div class="d-flex align-items-center">
+                                    <div class="avatar bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 40px; height: 40px;">
+                                        {{ user.first_name|slice:":1"|upper }}
+                                    </div>
+                                    <div>
+                                        <div class="fw-bold">{{ user.get_full_name|default:user.username }}</div>
+                                        <div class="small text-muted">{{ user.email }}</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                {% if user.profile.is_department_staff %}
+                                    <span class="badge bg-purple text-dark"><i class="fas fa-user-shield me-1"></i>Responsable</span>
+                                {% else %}
+                                    <span class="badge bg-secondary"><i class="fas fa-user me-1"></i>Employé</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if user.is_active %}
+                                    <span class="badge bg-success bg-opacity-10 text-success">Actif</span>
+                                {% else %}
+                                    <span class="badge bg-danger bg-opacity-10 text-danger">Désactivé</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-muted small">
+                                {{ user.date_joined|date:"d M Y" }}
+                            </td>
+                            <td class="text-end pe-4">
+                                <div class="btn-group">
+                                    <button type="button" class="btn btn-sm btn-outline-secondary"
+                                            data-bs-toggle="modal" data-bs-target="#editModal{{ user.id }}" title="Modifier">
+                                        <i class="fas fa-edit"></i>
+                                    </button>
+
+                                    <button type="button" class="btn btn-sm btn-outline-secondary"
+                                            data-bs-toggle="modal" data-bs-target="#settingsModal{{ user.id }}" title="Paramètres">
+                                        <i class="fas fa-cog"></i>
+                                    </button>
+
+                                    {% if user.is_active %}
+                                    <button type="button" class="btn btn-sm btn-outline-danger"
+                                            data-bs-toggle="modal" data-bs-target="#deleteModal{{ user.id }}" title="Supprimer">
+                                        <i class="fas fa-trash-alt"></i>
+                                    </button>
+                                    {% else %}
+                                    <form method="post" class="d-inline">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="user_id" value="{{ user.id }}">
+                                        <input type="hidden" name="action" value="activate_user">
+                                        <button type="submit" class="btn btn-sm btn-outline-success" title="Réactiver">
+                                            <i class="fas fa-undo"></i>
+                                        </button>
+                                    </form>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+
+                        <div class="modal fade" id="editModal{{ user.id }}" tabindex="-1" aria-hidden="true">
+                            <div class="modal-dialog">
+                                <form method="post" class="modal-content">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="user_id" value="{{ user.id }}">
+                                    <input type="hidden" name="action" value="edit_user">
+                                    <div class="modal-header">
+                                        <h5 class="modal-title">Modifier {{ user.username }}</h5>
+                                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                    </div>
+                                    <div class="modal-body">
+                                        <div class="mb-3">
+                                            <label class="form-label">Prénom</label>
+                                            <input type="text" name="first_name" class="form-control" value="{{ user.first_name }}" required>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">Nom</label>
+                                            <input type="text" name="last_name" class="form-control" value="{{ user.last_name }}" required>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">Email</label>
+                                            <input type="email" name="email" class="form-control" value="{{ user.email }}" required>
+                                        </div>
+                                    </div>
+                                    <div class="modal-footer">
+                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                                        <button type="submit" class="btn btn-primary">Enregistrer</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+
+                        <div class="modal fade" id="settingsModal{{ user.id }}" tabindex="-1" aria-hidden="true">
+                            <div class="modal-dialog">
+                                <div class="modal-content">
+                                    <div class="modal-header">
+                                        <h5 class="modal-title">Paramètres avancés</h5>
+                                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                    </div>
+                                    <div class="modal-body">
+                                        <h6 class="fw-bold">Rôle dans le département</h6>
+                                        <p class="small text-muted">Les responsables peuvent gérer l'équipe et valider les inscriptions.</p>
+                                        <form method="post" class="d-grid mb-4">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="user_id" value="{{ user.id }}">
+                                            <input type="hidden" name="action" value="toggle_department_staff">
+                                            {% if user.profile.is_department_staff %}
+                                                <button type="submit" class="btn btn-outline-warning">Retirer les droits Responsable</button>
+                                            {% else %}
+                                                <button type="submit" class="btn btn-outline-primary">Promouvoir Responsable</button>
+                                            {% endif %}
+                                        </form>
+
+                                        {% if not user.profile.is_oauth_user %}
+                                        <hr>
+                                        <h6 class="fw-bold">Sécurité</h6>
+                                        <form method="post" class="d-grid">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="user_id" value="{{ user.id }}">
+                                            <input type="hidden" name="action" value="reset_password">
+                                            <button type="submit" class="btn btn-outline-dark">
+                                                <i class="fas fa-key me-2"></i>Réinitialiser le mot de passe
+                                            </button>
+                                        </form>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="modal fade" id="deleteModal{{ user.id }}" tabindex="-1" aria-hidden="true">
+                            <div class="modal-dialog">
+                                <form method="post" class="modal-content">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="user_id" value="{{ user.id }}">
+                                    <input type="hidden" name="action" value="delete_user">
+
+                                    <div class="modal-header bg-danger text-white">
+                                        <h5 class="modal-title"><i class="fas fa-exclamation-triangle me-2"></i>Confirmation</h5>
+                                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                                    </div>
+                                    <div class="modal-body">
+                                        <p>Vous êtes sur le point de supprimer <strong>{{ user.get_full_name }}</strong>.</p>
+
+                                        <div class="alert alert-warning small">
+                                            <i class="fas fa-info-circle me-1"></i>
+                                            <strong>Règle de sécurité :</strong><br>
+                                            Si cet utilisateur a déjà déposé des documents, son compte sera seulement <strong>désactivé</strong> pour préserver les archives.
+                                            S'il n'a rien déposé, il sera <strong>définitivement supprimé</strong>.
+                                        </div>
+                                    </div>
+                                    <div class="modal-footer">
+                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                                        <button type="submit" class="btn btn-danger">Confirmer</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+
+                        {% endif %}
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            {% if not users %}
+            <div class="text-center py-5">
+                <p class="text-muted">Aucun membre dans ce département.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

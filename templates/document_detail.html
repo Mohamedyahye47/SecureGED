@@ -1,102 +1,235 @@
 {% extends 'base.html' %}
+{% load static %}
 
-{% block title %}{{ document.title }} - GED Sécurisé{% endblock %}
+{% block title %}{{ document.title }} - Détails{% endblock %}
 
 {% block content %}
-<div class="row">
-    <div class="col-md-8">
-        <div class="card mb-4">
-            <div class="card-header bg-primary text-white">
-                <h4 class="mb-0">📄 {{ document.title }}</h4>
-            </div>
-            <div class="card-body">
-                <div class="row mb-3">
-                    <div class="col-md-6">
-                        <p><strong>Classification :</strong> 
-                            <span class="badge bg-secondary">
-                                {{ document.get_classification_level_display }}
-                            </span>
-                        </p>
-                        <p><strong>Statut :</strong> 
-                            <span class="badge bg-success">{{ document.get_status_display }}</span>
-                        </p>
-                        <p><strong>Type :</strong> {{ document.mime_type }}</p>
-                        <p><strong>Taille :</strong> {{ document.file_size|filesizeformat }}</p>
-                    </div>
-                    <div class="col-md-6">
-                        <p><strong>Téléchargé par :</strong> {{ document.uploaded_by.username }}</p>
-                        <p><strong>Date :</strong> {{ document.uploaded_at|date:"d/m/Y H:i" }}</p>
-                        <p><strong>Dernière modification :</strong> {{ document.last_modified|date:"d/m/Y H:i" }}</p>
-                        <p><strong>Hash SHA-256 :</strong><br>
-                            <small class="font-monospace">{{ document.file_hash|truncatechars:20 }}</small>
-                        </p>
-                    </div>
-                </div>
+<style>
+    /* Styles spécifiques pour cette page */
+    .doc-icon-wrapper {
+        width: 60px;
+        height: 60px;
+        background: #f3f4f6;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 28px;
+        color: #4b5563;
+    }
 
-                {% if document.description %}
-                <div class="mb-3">
-                    <strong>Description :</strong>
-                    <p>{{ document.description }}</p>
-                </div>
-                {% endif %}
+    .meta-label {
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: #6b7280;
+        font-weight: 600;
+        margin-bottom: 0.25rem;
+    }
 
-                <div class="alert alert-success">
-                    <strong>🔒 Sécurité :</strong> Ce document est chiffré avec AES-256
-                </div>
+    .meta-value {
+        font-weight: 500;
+        color: #1f2937;
+    }
 
-                {% if can_download %}
-                <div class="d-grid gap-2">
-                    <a href="{% url 'document_download' document.id %}" 
-                       class="btn btn-primary btn-lg" target="_blank">
-                        📥 Visualiser le document (déchiffrement à la volée)
-                    </a>
-                </div>
-                {% else %}
-                <div class="alert alert-danger">
-                    ⛔ Vous n'avez pas l'habilitation nécessaire pour accéder à ce document
-                </div>
-                {% endif %}
-            </div>
-        </div>
-    </div>
+    /* Timeline pour les logs */
+    .timeline {
+        position: relative;
+        padding-left: 1.5rem;
+        border-left: 2px solid #e5e7eb;
+    }
 
-    <div class="col-md-4">
-        <div class="card">
-            <div class="card-header bg-info text-white">
-                <h5 class="mb-0">📋 Logs d'accès récents</h5>
-            </div>
-            <div class="card-body">
-                {% if recent_logs %}
-                    <div class="list-group list-group-flush">
-                        {% for log in recent_logs %}
-                        <div class="list-group-item px-0">
-                            <div class="d-flex justify-content-between">
-                                <strong>{{ log.user.username }}</strong>
-                                <small class="text-muted">
-                                    {{ log.timestamp|date:"d/m H:i" }}
-                                </small>
-                            </div>
-                            <small>
-                                <span class="badge bg-{% if log.success %}success{% else %}danger{% endif %}">
-                                    {{ log.get_action_display }}
-                                </span>
-                            </small>
-                        </div>
-                        {% endfor %}
-                    </div>
-                {% else %}
-                    <p class="text-muted">Aucun log disponible</p>
-                {% endif %}
+    .timeline-item {
+        position: relative;
+        margin-bottom: 1.5rem;
+    }
+
+    .timeline-dot {
+        position: absolute;
+        left: -1.85rem;
+        top: 0.25rem;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background: #fff;
+        border: 2px solid #d1d5db;
+    }
+
+    .timeline-dot.success { border-color: #10b981; background: #d1fae5; }
+    .timeline-dot.danger { border-color: #ef4444; background: #fee2e2; }
+</style>
+
+<div class="container py-4">
+    <div class="d-flex align-items-center justify-content-between mb-4">
+        <div class="d-flex align-items-center gap-3">
+            <a href="{% url back_url_name %}" class="btn btn-outline-secondary btn-sm rounded-circle" style="width: 32px; height: 32px; padding: 0; display: flex; align-items: center; justify-content: center;">
+                <i class="fas fa-arrow-left"></i>
+            </a>
+            <div>
+                <h6 class="text-muted mb-0 small text-uppercase fw-bold">Détails du document</h6>
+                <h2 class="fw-bold mb-0 text-dark">Aperçu & Métadonnées</h2>
             </div>
         </div>
-    </div>
-</div>
 
-<div class="row mt-3">
-    <div class="col-12">
-        <a href="{% url 'dashboard' %}" class="btn btn-outline-secondary">
-            ← Retour au tableau de bord
+        {% if can_download %}
+        <a href="{% url 'document_download' document.id %}" target="_blank" class="btn btn-primary px-4 shadow-sm">
+            <i class="fas fa-download me-2"></i>Télécharger / Voir
         </a>
+        {% endif %}
+    </div>
+
+    <div class="row g-4">
+        <div class="col-lg-8">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body p-4">
+                    <div class="d-flex align-items-start gap-3 mb-4">
+                        <div class="doc-icon-wrapper">
+    {# On vérifie l'extension du fichier OU le mime_type #}
+    {% if '.pdf' in document.file.name|lower or 'pdf' in document.mime_type %}
+        <i class="fas fa-file-pdf text-danger"></i>
+
+    {% elif '.jpg' in document.file.name|lower or '.png' in document.file.name|lower or 'image' in document.mime_type %}
+        <i class="fas fa-file-image text-primary"></i>
+
+    {% elif '.doc' in document.file.name|lower or 'word' in document.mime_type %}
+        <i class="fas fa-file-word text-primary"></i>
+
+    {% elif '.xls' in document.file.name|lower or 'sheet' in document.mime_type %}
+        <i class="fas fa-file-excel text-success"></i>
+
+    {% else %}
+        <i class="fas fa-file-alt text-secondary"></i>
+    {% endif %}
+</div>
+                        <div class="flex-grow-1">
+                            <h3 class="fw-bold mb-1">{{ document.title }}</h3>
+                            <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-25">
+                                {{ document.mime_type }}
+                            </span>
+                            <span class="text-muted small ms-2">• {{ document.file_size|filesizeformat }}</span>
+                        </div>
+                    </div>
+
+                    {% if document.description %}
+                    <div class="mb-4">
+                        <label class="meta-label">Description</label>
+                        <p class="text-secondary bg-light p-3 rounded-3 mb-0">
+                            {{ document.description }}
+                        </p>
+                    </div>
+                    {% endif %}
+
+                    <div class="row g-4 mb-4">
+                        <div class="col-md-6">
+                            <div class="d-flex flex-column">
+                                <span class="meta-label">Propriétaire</span>
+                                <div class="d-flex align-items-center gap-2">
+                                    <div class="avatar-xs bg-primary text-white rounded-circle d-flex align-items-center justify-content-center" style="width: 24px; height: 24px; font-size: 10px;">
+                                        {{ document.uploaded_by.username|slice:":1"|upper }}
+                                    </div>
+                                    <span class="meta-value">{{ document.uploaded_by.get_full_name|default:document.uploaded_by.username }}</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="d-flex flex-column">
+                                <span class="meta-label">Date de création</span>
+                                <span class="meta-value">
+                                    <i class="far fa-calendar-alt me-1 text-muted"></i>
+                                    {{ document.uploaded_at|date:"d/m/Y à H:i" }}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="border rounded-3 p-3 bg-light mt-4">
+                        <h6 class="fw-bold text-dark mb-3"><i class="fas fa-shield-halved me-2 text-primary"></i>Empreinte de Sécurité</h6>
+
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <span class="meta-label d-block">Classification</span>
+                                {% if document.classification_level >= 3 %}
+                                    <span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25 px-3 py-2">
+                                        <i class="fas fa-lock me-1"></i> {{ document.get_classification_level_display }}
+                                    </span>
+                                {% else %}
+                                    <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-3 py-2">
+                                        <i class="fas fa-lock-open me-1"></i> {{ document.get_classification_level_display }}
+                                    </span>
+                                {% endif %}
+                            </div>
+                            <div class="col-md-6">
+                                <span class="meta-label d-block">Chiffrement</span>
+                                <span class="badge bg-info bg-opacity-10 text-info border border-info border-opacity-25 px-3 py-2">
+                                    AES-256 (At Rest)
+                                </span>
+                            </div>
+                            <div class="col-12">
+                                <span class="meta-label d-block">Hash SHA-256 (Intégrité)</span>
+                                <code class="d-block p-2 bg-white border rounded text-break text-muted small" style="font-family: 'Fira Code', monospace;">
+                                    {{ document.file_hash }}
+                                </code>
+                            </div>
+                        </div>
+                    </div>
+
+                    {% if not can_download %}
+                    <div class="alert alert-danger mt-3 mb-0 d-flex align-items-center">
+                        <i class="fas fa-ban fa-2x me-3"></i>
+                        <div>
+                            <strong>Accès Restreint</strong>
+                            <p class="mb-0 small">Votre niveau d'habilitation est insuffisant pour lire ce document.</p>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            {% if show_logs %}
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white border-bottom py-3">
+                    <h6 class="fw-bold mb-0 text-dark">
+                        <i class="fas fa-history me-2 text-muted"></i>Historique d'accès
+                    </h6>
+                </div>
+                <div class="card-body p-4">
+                    {% if recent_logs %}
+                        <div class="timeline">
+                            {% for log in recent_logs %}
+                            <div class="timeline-item">
+                                <div class="timeline-dot {% if log.success %}success{% else %}danger{% endif %}"></div>
+                                <div class="d-flex justify-content-between align-items-start mb-1">
+                                    <span class="fw-bold text-dark small">{{ log.user.username|default:"Système" }}</span>
+                                    <small class="text-muted" style="font-size: 0.7rem;">{{ log.timestamp|date:"d/m H:i" }}</small>
+                                </div>
+                                <p class="mb-1 small">
+                                    {{ log.get_action_display }}
+                                </p>
+                                {% if not log.success %}
+                                    <span class="text-danger small fst-italic">
+                                        <i class="fas fa-exclamation-triangle me-1"></i>Échec
+                                    </span>
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                       <div class="text-center mt-3 pt-3 border-top">
+    <a href="{% url 'audit_log' %}?doc_id={{ document.id }}" class="text-decoration-none small fw-bold">
+        Voir tout l'historique <i class="fas fa-arrow-right ms-1"></i>
+    </a>
+</div>
+                    {% else %}
+                        <div class="text-center py-4 text-muted">
+                            <i class="fas fa-wind fa-2x mb-2 opacity-50"></i>
+                            <p class="small mb-0">Aucune activité récente.</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
     </div>
 </div>
 {% endblock %}

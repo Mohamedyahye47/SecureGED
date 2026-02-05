@@ -1,0 +1,311 @@
+{ % extends
+"admin/base_site.html" %}
+{ % load
+i18n
+static %}
+
+{ % block
+extrastyle %}
+{{block.super}}
+< style >
+.create - dept - card
+{
+    max - width: 600px;
+margin: 40
+px
+auto;
+background: white;
+border - radius: 12
+px;
+box - shadow: 0
+4
+px
+12
+px
+rgba(0, 0, 0, 0.1);
+padding: 32
+px;
+}
+.create - dept - header
+{
+    text - align: center;
+margin - bottom: 32
+px;
+}
+.create - dept - icon
+{
+    width: 80px;
+height: 80
+px;
+background: linear - gradient(135
+deg,  # 667eea 0%, #764ba2 100%);
+border - radius: 50 %;
+display: flex;
+align - items: center;
+justify - content: center;
+margin: 0
+auto
+16
+px;
+font - size: 32
+px;
+color: white;
+}
+.form - group
+{
+    margin - bottom: 24px;
+}
+.form - label
+{
+    display: block;
+font - weight: 600;
+margin - bottom: 8
+px;
+color:  # 374151;
+}
+.form - input
+{
+    width: 100 %;
+padding: 12
+px
+16
+px;
+border: 2
+px
+solid  # e5e7eb;
+border - radius: 8
+px;
+font - size: 16
+px;
+transition: all
+0.2
+s;
+}
+.form - input: focus
+{
+    outline: none;
+border - color:  # 667eea;
+box - shadow: 0
+0
+0
+3
+px
+rgba(102, 126, 234, 0.1);
+}
+.info - box
+{
+    background:  # eff6ff;
+        border - left: 4
+px
+solid  # 3b82f6;
+padding: 16
+px;
+border - radius: 8
+px;
+margin - bottom: 24
+px;
+}
+.info - box
+strong
+{
+    color:  # 1e40af;
+}
+.btn - create
+{
+    width: 100 %;
+padding: 14
+px
+24
+px;
+background: linear - gradient(135
+deg,  # 667eea 0%, #764ba2 100%);
+color: white;
+border: none;
+border - radius: 8
+px;
+font - size: 16
+px;
+font - weight: 600;
+cursor: pointer;
+transition: all
+0.2
+s;
+}
+.btn - create: hover
+{
+    transform: translateY(-2px);
+box - shadow: 0
+8
+px
+16
+px
+rgba(102, 126, 234, 0.3);
+}
+.btn - cancel
+{
+    display: inline - block;
+margin - top: 16
+px;
+color:  # 6b7280;
+text - decoration: none;
+text - align: center;
+width: 100 %;
+}
+.btn - cancel: hover
+{
+    color:  # 374151;
+}
+< / style >
+    { % endblock %}
+
+{ % block
+breadcrumbs %}
+< div
+
+
+class ="breadcrumbs" >
+
+< a
+href = "{% url 'admin:index' %}" > { % trans
+'Home' %} < / a >
+& rsaquo; < a
+href = "{% url 'admin:documents_department_changelist' %}" > Départements < / a >
+& rsaquo;
+Créer
+avec
+Staff
+< / div >
+{ % endblock %}
+
+{ % block
+content %}
+< div
+
+
+class ="create-dept-card" >
+
+< div
+
+
+class ="create-dept-header" >
+
+< div
+
+
+class ="create-dept-icon" >
+
+🏢
+< / div >
+< h1
+style = "margin: 0; font-size: 24px; color: #111827;" > Créer
+un
+nouveau
+département < / h1 >
+< p
+style = "color: #6b7280; margin-top: 8px;" > Vous
+deviendrez
+automatiquement
+le
+responsable < / p >
+< / div >
+
+< form
+method = "post" >
+{ % csrf_token %}
+
+< div
+
+
+class ="info-box" >
+
+< strong > ℹ️
+Important: < / strong >
+< p
+style = "margin: 8px 0 0 0; color: #1e40af;" >
+En
+tant
+que
+créateur
+de
+ce
+département, vous
+serez
+automatiquement
+désigné
+comme
+< strong > premier
+responsable(Staff) < / strong >.Vous
+pourrez
+ensuite
+gérer
+les
+utilisateurs
+de
+ce
+département.
+< / p >
+< / div >
+
+< div
+
+
+class ="form-group" >
+
+< label
+
+
+class ="form-label" for ="department_name" >
+
+
+Nom
+du
+département < span
+style = "color: #dc2626;" > * < / span >
+< / label >
+< input
+type = "text"
+name = "department_name"
+id = "department_name"
+
+
+class ="form-input"
+
+
+placeholder = "Ex: Informatique, Ressources Humaines, Finance..."
+required
+autofocus
+>
+< small
+style = "color: #6b7280; display: block; margin-top: 4px;" >
+Choisissez
+un
+nom
+clair
+et
+descriptif
+< / small >
+< / div >
+
+< button
+type = "submit"
+
+
+class ="btn-create" >
+
+✨ Créer
+le
+département
+< / button >
+
+< a
+href = "{% url 'admin:documents_department_changelist' %}"
+
+
+class ="btn-cancel" >
+
+
+Annuler
+< / a >
+< / form >
+< / div >
+{ % endblock %}

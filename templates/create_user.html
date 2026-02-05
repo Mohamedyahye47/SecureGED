@@ -1,0 +1,302 @@
+{% extends 'base.html' %}
+
+{% block title %}Créer un Utilisateur{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-9 col-xl-8">
+            <nav aria-label="breadcrumb" class="mb-4">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{% url 'dashboard' %}" class="text-decoration-none">Tableau de bord</a></li>
+                    <li class="breadcrumb-item"><a href="{% url 'admin_users' %}" class="text-decoration-none">Utilisateurs</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Créer un utilisateur</li>
+                </ol>
+            </nav>
+
+            <div class="card shadow-lg border-0 rounded-4 overflow-hidden">
+                <div class="card-header border-0 py-4" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                    <div class="d-flex align-items-center text-white">
+                        <div class="bg-white bg-opacity-25 rounded-circle p-3 me-3">
+                            <i class="fas fa-user-plus fa-lg"></i>
+                        </div>
+                        <div>
+                            <h4 class="mb-1 fw-bold">Créer un membre d'équipe</h4>
+                            <p class="mb-0 opacity-90 small">Département : <strong>{{ department.name|default:"Non assigné" }}</strong></p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card-body p-4 p-md-5">
+                    <form method="post" id="createUserForm">
+                        {% csrf_token %}
+
+                        <div class="mb-5">
+                            <div class="d-flex align-items-center mb-4">
+                                <div class="bg-primary bg-opacity-10 rounded-circle p-2 me-3">
+                                    <i class="fas fa-id-card text-primary"></i>
+                                </div>
+                                <h5 class="mb-0 fw-bold text-primary">Identifiants de connexion</h5>
+                            </div>
+
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="form-label fw-semibold">
+                                        <i class="fas fa-user text-muted me-2"></i>
+                                        Nom d'utilisateur <span class="text-danger">*</span>
+                                    </label>
+                                    <input type="text"
+                                           name="username"
+                                           class="form-control form-control-lg shadow-sm border-2"
+                                           placeholder="ex: jdupont"
+                                           required
+                                           autocomplete="off">
+                                    <div class="form-text">
+                                        <i class="fas fa-info-circle me-1"></i>
+                                        Identifiant unique pour la connexion.
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-semibold">
+                                        <i class="fas fa-envelope text-muted me-2"></i>
+                                        Adresse email <span class="text-danger">*</span>
+                                    </label>
+                                    <input type="email"
+                                           name="email"
+                                           class="form-control form-control-lg shadow-sm border-2"
+                                           placeholder="utilisateur@entreprise.com"
+                                           required
+                                           autocomplete="off">
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label fw-semibold">
+                                        <i class="fas fa-lock text-muted me-2"></i>
+                                        Mot de passe <span class="text-danger">*</span>
+                                    </label>
+                                    <div class="input-group shadow-sm">
+                                        <input type="password"
+                                               name="password"
+                                               id="passwordField"
+                                               class="form-control form-control-lg border-2"
+                                               placeholder="Minimum 8 caractères"
+                                               required
+                                               minlength="8"
+                                               autocomplete="new-password">
+                                        <button class="btn btn-outline-secondary"
+                                                type="button"
+                                                id="togglePassword"
+                                                title="Afficher/Masquer">
+                                            <i class="fas fa-eye" id="toggleIcon"></i>
+                                        </button>
+                                        <button class="btn btn-outline-primary"
+                                                type="button"
+                                                id="generatePassword"
+                                                title="Générer un mot de passe">
+                                            <i class="fas fa-random me-1"></i>Générer
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <hr class="my-4 border-2 border-primary opacity-25">
+
+                        <div class="mb-5">
+                            <div class="d-flex align-items-center mb-4">
+                                <div class="bg-success bg-opacity-10 rounded-circle p-2 me-3">
+                                    <i class="fas fa-address-card text-success"></i>
+                                </div>
+                                <h5 class="mb-0 fw-bold text-success">Informations personnelles</h5>
+                            </div>
+
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="form-label fw-semibold">Prénom</label>
+                                    <input type="text"
+                                           name="first_name"
+                                           class="form-control form-control-lg shadow-sm border-2"
+                                           placeholder="ex: Jean">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-semibold">Nom de famille</label>
+                                    <input type="text"
+                                           name="last_name"
+                                           class="form-control form-control-lg shadow-sm border-2"
+                                           placeholder="ex: Dupont">
+                                </div>
+                            </div>
+                        </div>
+
+                        <hr class="my-4 border-2 border-warning opacity-25">
+
+                        <div class="mb-5">
+                            <div class="d-flex align-items-center mb-4">
+                                <div class="bg-warning bg-opacity-10 rounded-circle p-2 me-3">
+                                    <i class="fas fa-shield-alt text-warning"></i>
+                                </div>
+                                <h5 class="mb-0 fw-bold text-warning">Rôle dans le département</h5>
+                            </div>
+
+                            <div class="role-cards">
+                                <div class="role-card" data-role="user">
+                                    <input type="radio" name="role" value="user" id="role_user" checked hidden>
+                                    <label for="role_user" class="card border-2 shadow-sm mb-3 cursor-pointer hover-shadow transition">
+                                        <div class="card-body p-4">
+                                            <div class="d-flex align-items-start">
+                                                <div class="bg-secondary bg-opacity-10 rounded-circle p-3 me-3">
+                                                    <i class="fas fa-user fa-lg text-secondary"></i>
+                                                </div>
+                                                <div class="flex-grow-1">
+                                                    <h6 class="fw-bold mb-2">Collaborateur (Standard)</h6>
+                                                    <p class="text-muted small mb-2">Accès standard aux documents du département.</p>
+                                                    <div class="d-flex align-items-center">
+                                                        <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary me-2">
+                                                            <i class="fas fa-check me-1"></i>Consultation
+                                                        </span>
+                                                        <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary">
+                                                            <i class="fas fa-upload me-1"></i>Dépôt
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                                <i class="fas fa-check-circle fa-2x text-secondary check-icon"></i>
+                                            </div>
+                                        </div>
+                                    </label>
+                                </div>
+
+                                <div class="role-card" data-role="staff">
+                                    <input type="radio" name="role" value="staff" id="role_staff" hidden>
+                                    <label for="role_staff" class="card border-2 shadow-sm mb-3 cursor-pointer hover-shadow transition">
+                                        <div class="card-body p-4">
+                                            <div class="d-flex align-items-start">
+                                                <div class="bg-warning bg-opacity-10 rounded-circle p-3 me-3">
+                                                    <i class="fas fa-briefcase fa-lg text-warning"></i>
+                                                </div>
+                                                <div class="flex-grow-1">
+                                                    <h6 class="fw-bold mb-2">Responsable (Staff)</h6>
+                                                    <p class="text-muted small mb-2">Peut gérer les utilisateurs et valider les documents.</p>
+                                                    <div class="d-flex align-items-center">
+                                                        <span class="badge bg-warning bg-opacity-10 text-warning border border-warning me-2">
+                                                            <i class="fas fa-users-cog me-1"></i>Gestion Équipe
+                                                        </span>
+                                                        <span class="badge bg-warning bg-opacity-10 text-warning border border-warning">
+                                                            <i class="fas fa-check-double me-1"></i>Validation
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                                <i class="fas fa-check-circle fa-2x text-warning check-icon"></i>
+                                            </div>
+                                        </div>
+                                    </label>
+                                </div>
+
+                                </div>
+                        </div>
+
+                        <div class="d-flex gap-3 mt-5">
+                            <button type="submit" class="btn btn-primary btn-lg px-5 shadow-sm flex-grow-1">
+                                <i class="fas fa-save me-2"></i>
+                                Créer et Valider
+                            </button>
+                            <a href="{% url 'admin_users' %}" class="btn btn-light btn-lg px-4 shadow-sm">
+                                <i class="fas fa-times me-2"></i>
+                                Annuler
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.cursor-pointer { cursor: pointer; }
+.hover-shadow { transition: all 0.3s ease; }
+.hover-shadow:hover { transform: translateY(-2px); box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important; }
+
+/* Radio Button Logic */
+.role-card input[type="radio"]:checked + label {
+    border-color: var(--bs-primary) !important;
+    background-color: rgba(102, 126, 234, 0.05);
+}
+
+.role-card input[type="radio"]:not(:checked) + label .check-icon {
+    opacity: 0;
+    transform: scale(0.5);
+}
+
+.role-card input[type="radio"]:checked + label .check-icon {
+    opacity: 1;
+    transform: scale(1);
+}
+
+.check-icon { transition: all 0.3s ease; }
+
+.form-control:focus, .form-select:focus {
+    border-color: #667eea;
+    box-shadow: 0 0 0 0.25rem rgba(102, 126, 234, 0.25);
+}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // 1. Password Toggle
+    const togglePassword = document.getElementById('togglePassword');
+    const passwordField = document.getElementById('passwordField');
+    const toggleIcon = document.getElementById('toggleIcon');
+
+    if (togglePassword) {
+        togglePassword.addEventListener('click', function() {
+            const type = passwordField.getAttribute('type') === 'password' ? 'text' : 'password';
+            passwordField.setAttribute('type', type);
+            toggleIcon.classList.toggle('fa-eye');
+            toggleIcon.classList.toggle('fa-eye-slash');
+        });
+    }
+
+    // 2. Password Generator
+    const generatePassword = document.getElementById('generatePassword');
+    if (generatePassword) {
+        generatePassword.addEventListener('click', function() {
+            const length = 12;
+            const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%";
+            let password = "";
+            for (let i = 0; i < length; i++) {
+                password += charset.charAt(Math.floor(Math.random() * charset.length));
+            }
+            passwordField.value = password;
+            passwordField.type = 'text'; // Show it
+
+            // Visual feedback
+            passwordField.classList.add('border-success');
+            setTimeout(() => passwordField.classList.remove('border-success'), 1000);
+        });
+    }
+
+    // 3. Validation visuelle form
+    const form = document.getElementById('createUserForm');
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            if (!form.checkValidity()) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+            form.classList.add('was-validated');
+        });
+    }
+
+    // 4. Role Selection Highlight
+    const roleInputs = document.querySelectorAll('input[name="role"]');
+    // Force refresh visual state on load (firefox cache fix)
+    roleInputs.forEach(input => {
+        if(input.checked) {
+             // Logic handled by CSS + sibling selector, usually enough.
+        }
+        input.addEventListener('change', function() {
+            // CSS handles the border via :checked + label
+        });
+    });
+});
+</script>
+{% endblock %}

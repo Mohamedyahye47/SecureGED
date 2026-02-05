@@ -1,0 +1,67 @@
+{% extends 'base.html' %} {% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="fas fa-users-cog"></i> Gestion Département : {{ department.name }}</h2>
+    </div>
+
+    <div class="card p-4">
+        {% if users %}
+        <table class="table table-hover align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>Utilisateur</th>
+                    <th>Email</th>
+                    <th>Date d'inscription</th>
+                    <th>Statut</th>
+                    <th class="text-end">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for u in users %}
+                <tr>
+                    <td>
+                        <div class="d-flex align-items-center gap-3">
+                            <div class="avatar-small bg-secondary text-white rounded-circle d-flex justify-content-center align-items-center" style="width:35px; height:35px;">
+                                {{ u.username|slice:":1"|upper }}
+                            </div>
+                            <div>
+                                <div class="fw-bold">{{ u.username }}</div>
+                                <small class="text-muted">{{ u.first_name }} {{ u.last_name }}</small>
+                            </div>
+                        </div>
+                    </td>
+                    <td>{{ u.email }}</td>
+                    <td>{{ u.date_joined|date:"d M Y" }}</td>
+                    <td>
+                        {% if u.is_active %}
+                            <span class="badge bg-success">Actif</span>
+                        {% else %}
+                            <span class="badge bg-danger">Bloqué</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-end">
+                        <form method="POST" style="display:inline;">
+                            {% csrf_token %}
+                            <input type="hidden" name="user_id" value="{{ u.id }}">
+                            
+                            {% if u.is_active %}
+                                <button type="submit" name="action" value="block" class="btn btn-sm btn-outline-danger" title="Bloquer l'accès">
+                                    <i class="fas fa-ban"></i> Bloquer
+                                </button>
+                            {% else %}
+                                <button type="submit" name="action" value="activate" class="btn btn-sm btn-outline-success" title="Réactiver">
+                                    <i class="fas fa-check"></i> Activer
+                                </button>
+                            {% endif %}
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+            <div class="alert alert-info">Aucun autre utilisateur trouvé dans ce département.</div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

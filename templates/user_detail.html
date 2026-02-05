@@ -1,10 +1,136 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>Title</title>
-</head>
-<body>
+{% extends 'base.html' %}
 
-</body>
-</html>
+{% block title %}Détails Utilisateur : {{ profile_user.username }}{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="d-flex align-items-center justify-content-between mb-4">
+        <div>
+            <h2 class="fw-bold mb-1">
+                {% if profile_user.get_full_name %}
+                    {{ profile_user.get_full_name }}
+                {% else %}
+                    {{ profile_user.username }}
+                {% endif %}
+            </h2>
+            <p class="text-muted mb-0">Gestion administrative du compte</p>
+        </div>
+        <a href="{% url 'admin_users' %}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left me-2"></i>Retour à la liste
+        </a>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-lg-4">
+            <div class="card border-0 shadow-sm text-center h-100">
+                <div class="card-body p-4 d-flex flex-column align-items-center">
+                    
+                    <div class="mb-3">
+                        {% if profile_user.profile.profile_picture %}
+                            <img src="{{ profile_user.profile.profile_picture.url }}" 
+                                 class="rounded-circle shadow-sm" 
+                                 style="width: 120px; height: 120px; object-fit: cover;">
+                        {% else %}
+                            <div class="rounded-circle d-flex align-items-center justify-content-center shadow-sm text-white fw-bold"
+                                 style="width: 120px; height: 120px; font-size: 3rem; background-color: #6c757d;">
+                                {{ profile_user.username|slice:":1"|upper }}
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <h5 class="fw-bold">{{ profile_user.username }}</h5>
+                    <p class="text-muted mb-3">{{ profile_user.email }}</p>
+
+                    <div class="mb-4">
+                        {% if profile_user.is_superuser %}
+                            <span class="badge bg-danger">Super Admin</span>
+                        {% elif profile_user.is_staff %}
+                            <span class="badge bg-warning text-dark">Staff</span>
+                        {% else %}
+                            <span class="badge bg-secondary">Utilisateur</span>
+                        {% endif %}
+                        
+                        <span class="badge bg-info text-dark">
+                            Niveau {{ profile_user.profile.get_clearance_level_display }}
+                        </span>
+                    </div>
+
+                    <hr class="w-100">
+
+                    <div class="w-100 text-start">
+                        <label class="small text-muted fw-bold mb-2">SÉCURITÉ</label>
+                        
+                        {% if not is_google_user %}
+                            <form action="{% url 'admin_reset_password' profile_user.id %}" method="POST" onsubmit="return confirm('Êtes-vous sûr de vouloir réinitialiser le mot de passe de cet utilisateur ?\n\nUn nouveau mot de passe temporaire sera généré.');">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-warning w-100 mb-2">
+                                    <i class="fas fa-key me-2"></i>Reset Mot de Passe
+                                </button>
+                            </form>
+                            <small class="text-muted d-block text-center fst-italic">
+                                Génère un mot de passe aléatoire.
+                            </small>
+                        {% else %}
+                            <div class="alert alert-info small mb-0">
+                                <i class="fab fa-google me-2"></i> Compte Google (OAuth).<br>
+                                Pas de mot de passe local à gérer.
+                            </div>
+                        {% endif %}
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-8">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white border-bottom py-3">
+                    <h5 class="fw-bold mb-0 text-primary">Informations du Profil</h5>
+                </div>
+                <div class="card-body p-4">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="small text-muted fw-bold">Prénom</label>
+                            <input type="text" class="form-control" value="{{ profile_user.first_name }}" readonly>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="small text-muted fw-bold">Nom</label>
+                            <input type="text" class="form-control" value="{{ profile_user.last_name }}" readonly>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="small text-muted fw-bold">Département</label>
+                            <input type="text" class="form-control" value="{{ profile_user.profile.department }}" readonly>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="small text-muted fw-bold">Dernière connexion</label>
+                            <input type="text" class="form-control" value="{{ profile_user.last_login|default:'Jamais' }}" readonly>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="small text-muted fw-bold">Date d'inscription</label>
+                            <input type="text" class="form-control" value="{{ profile_user.date_joined|date:'d/m/Y H:i' }}" readonly>
+                        </div>
+                        <div class="col-12">
+                            <label class="small text-muted fw-bold">Bio</label>
+                            <textarea class="form-control" rows="3" readonly>{{ profile_user.profile.bio }}</textarea>
+                        </div>
+                    </div>
+
+                    {% if not profile_user.is_superuser %}
+                    <div class="mt-5 pt-4 border-top">
+                        <h6 class="text-danger fw-bold mb-3"><i class="fas fa-exclamation-triangle me-2"></i>Zone de Danger</h6>
+                        <form action="{% url 'admin_users' %}" method="POST" onsubmit="return confirm('ATTENTION : Cette action est irréversible.\nConfirmez-vous la suppression du compte ?');">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="delete">
+                            <input type="hidden" name="user_id" value="{{ profile_user.id }}">
+                            <button type="submit" class="btn btn-outline-danger">
+                                <i class="fas fa-trash-alt me-2"></i>Supprimer le compte
+                            </button>
+                        </form>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

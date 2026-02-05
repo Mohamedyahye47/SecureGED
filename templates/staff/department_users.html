@@ -1,0 +1,209 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Gestion de l'équipe - {{ department.name }}{% endblock %}
+
+{% block content %}
+<style>
+    /* Cartes et Design */
+    .card-custom {
+        border: none;
+        border-radius: 16px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+        background: rgba(255, 255, 255, 0.9);
+        backdrop-filter: blur(10px);
+        margin-bottom: 2rem;
+        overflow: hidden;
+    }
+
+    .card-header-custom {
+        background: linear-gradient(135deg, #0f2f2a 0%, #0b1f1c 100%);
+        color: white;
+        padding: 1.5rem;
+        border-bottom: none;
+    }
+
+    /* Badges */
+    .badge-role { background: #e0e7ff; color: #4338ca; border: 1px solid #c7d2fe; padding: 5px 10px; border-radius: 8px; font-weight: 600; }
+    .badge-pending { background: #fef3c7; color: #b45309; border: 1px solid #fde68a; }
+    .badge-active { background: #d1fae5; color: #065f46; border: 1px solid #a7f3d0; }
+
+    /* Avatars */
+    .avatar-circle {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background: #e07a5f;
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        font-size: 1.1rem;
+    }
+
+    /* Boutons d'action */
+    .btn-action {
+        width: 35px;
+        height: 35px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 8px;
+        border: none;
+        transition: all 0.2s;
+    }
+    .btn-approve { background: #dcfce7; color: #166534; }
+    .btn-approve:hover { background: #166534; color: white; transform: scale(1.1); }
+    
+    .btn-reject { background: #fee2e2; color: #991b1b; }
+    .btn-reject:hover { background: #991b1b; color: white; transform: scale(1.1); }
+
+    /* Table */
+    .table > :not(caption) > * > * { padding: 1rem 1rem; vertical-align: middle; }
+    .table tr:hover { background-color: rgba(224, 122, 95, 0.05); }
+</style>
+
+<div class="container-fluid px-4 py-4">
+    
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="fw-bold mb-1">
+                <i class="fas fa-users-cog me-2 text-primary"></i>Gestion de l'équipe
+            </h2>
+            <p class="text-muted mb-0">Département : <span class="fw-bold text-dark">{{ department.name }}</span></p>
+        </div>
+        <div>
+            <span class="badge bg-white text-dark border p-2 shadow-sm">
+                <i class="fas fa-user-check me-1"></i> {{ active_users.count }} Actifs
+            </span>
+            {% if pending_users.count > 0 %}
+            <span class="badge bg-warning text-dark border p-2 shadow-sm ms-2">
+                <i class="fas fa-clock me-1"></i> {{ pending_users.count }} En attente
+            </span>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if pending_users %}
+    <div class="card card-custom border-warning border border-2">
+        <div class="card-header-custom bg-warning bg-opacity-10 text-dark" style="background: #fffbeb;">
+            <div class="d-flex align-items-center">
+                <i class="fas fa-exclamation-circle text-warning fa-lg me-2"></i>
+                <h5 class="mb-0 fw-bold">Demandes d'inscription en attente</h5>
+            </div>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table mb-0">
+                    <thead class="bg-light text-uppercase small text-muted">
+                        <tr>
+                            <th>Utilisateur</th>
+                            <th>Email</th>
+                            <th>Date Demande</th>
+                            <th class="text-end">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for user in pending_users %}
+                        <tr>
+                            <td>
+                                <div class="d-flex align-items-center">
+                                    <div class="avatar-circle me-3 bg-warning text-dark">
+                                        {{ user.username|slice:":1"|upper }}
+                                    </div>
+                                    <div>
+                                        <div class="fw-bold">{{ user.first_name }} {{ user.last_name }}</div>
+                                        <div class="small text-muted">@{{ user.username }}</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>{{ user.email }}</td>
+                            <td>{{ user.date_joined|date:"d M Y" }}</td>
+                            <td class="text-end">
+                                <div class="d-flex justify-content-end gap-2">
+                                    <form method="post" action="{% url 'reject_user' user.id %}" onsubmit="return confirm('Êtes-vous sûr de vouloir refuser cet utilisateur ?');">
+                                        {% csrf_token %}
+                                        <button type="submit" class="btn-action btn-reject" title="Refuser">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    </form>
+
+                                    <form method="post" action="{% url 'approve_user' user.id %}">
+                                        {% csrf_token %}
+                                        <button type="submit" class="btn-action btn-approve" title="Approuver">
+                                            <i class="fas fa-check"></i>
+                                        </button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="card card-custom">
+        <div class="card-header-custom">
+            <h5 class="mb-0"><i class="fas fa-list me-2"></i>Membres actifs</h5>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table mb-0">
+                    <thead>
+                        <tr class="text-uppercase small text-muted bg-light">
+                            <th class="ps-4">Membre</th>
+                            <th>Rôle</th>
+                            <th>Date d'arrivée</th>
+                            <th>Statut</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for user in active_users %}
+                        <tr>
+                            <td class="ps-4">
+                                <div class="d-flex align-items-center">
+                                    <div class="avatar-circle me-3">
+                                        {{ user.username|slice:":1"|upper }}
+                                    </div>
+                                    <div>
+                                        <div class="fw-bold">{{ user.first_name }} {{ user.last_name }}</div>
+                                        <div class="small text-muted">{{ user.email }}</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                {% if user.is_staff %}
+                                    <span class="badge badge-role"><i class="fas fa-shield-alt me-1"></i>Manager</span>
+                                {% else %}
+                                    <span class="badge bg-light text-dark border"><i class="fas fa-user me-1"></i>Employé</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-muted small">
+                                <i class="far fa-calendar-alt me-1"></i>{{ user.date_joined|date:"d M Y" }}
+                            </td>
+                            <td>
+                                <span class="badge badge-active">
+                                    <i class="fas fa-check-circle me-1"></i>Actif
+                                </span>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="4" class="text-center py-5 text-muted">
+                                <i class="fas fa-users-slash fa-2x mb-3 opacity-50"></i>
+                                <p>Aucun membre actif dans ce département pour le moment.</p>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+</div>
+{% endblock %}

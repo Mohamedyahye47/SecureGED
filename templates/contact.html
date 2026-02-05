@@ -1,0 +1,143 @@
+{% extends 'base.html' %}
+
+{% block title %}Messagerie Sécurisée{% endblock %}
+
+{% block content %}
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
+
+<style>
+    /* Style personnalisé pour fondre la barre de recherche dans votre design */
+    .select2-container--bootstrap-5 .select2-selection {
+        border-color: #cbd5e1;
+        border-radius: 8px;
+        padding: 8px;
+        height: auto; /* S'adapte au contenu */
+        background-color: #f8fafc;
+    }
+    .select2-container--bootstrap-5 .select2-selection--single .select2-selection__rendered {
+        color: #334155;
+        font-weight: 500;
+        font-size: 1rem;
+    }
+    .select2-search__field {
+        border-radius: 6px !important;
+    }
+</style>
+
+<div class="container-fluid py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+
+            <div class="d-flex align-items-center justify-content-between mb-4">
+                <div>
+                    <h2 class="fw-bold mb-1" style="font-family: 'Space Grotesk', sans-serif;">
+                        <i class="fas fa-paper-plane text-primary me-2"></i>Nouveau Message
+                    </h2>
+                    <p class="text-muted">Écrivez à un collègue en tapant son nom ci-dessous.</p>
+                </div>
+            </div>
+
+            <div class="card border-0 shadow-lg" style="background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(12px); border-radius: 16px;">
+                <div class="card-body p-4 p-md-5">
+
+                    <form method="post" enctype="multipart/form-data">
+                        {% csrf_token %}
+
+                        <div class="mb-4">
+                            <label class="form-label fw-bold text-uppercase small text-muted">Destinataire</label>
+
+                            <div class="input-group">
+                                <span class="input-group-text bg-white border-end-0"><i class="fas fa-search text-primary"></i></span>
+                                <select class="form-select" name="recipient" id="userSearch" required>
+                                    <option value=""></option> {% for u in users %}
+                                        <option value="{{ u.id }}">
+                                            {{ u.last_name|upper }} {{ u.first_name }}
+                                            {% if u.profile.department %} — Service {{ u.profile.department.name }}{% endif %}
+                                        </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="form-text mt-2"><i class="fas fa-info-circle me-1"></i> Commencez à taper un nom pour filtrer la liste.</div>
+                        </div>
+
+                        <hr class="my-4" style="opacity: 0.1;">
+
+                        <div class="mb-4">
+                            <label class="form-label fw-bold text-uppercase small text-muted">Sujet</label>
+                            {{ form.subject }}
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="form-label fw-bold text-uppercase small text-muted">Message</label>
+                            {{ form.message }}
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="form-label fw-bold text-uppercase small text-muted">Pièce jointe (Optionnel)</label>
+                            <div class="p-4 rounded-3 text-center border border-2 border-dashed" style="background-color: #f8fafc; border-color: #cbd5e1;">
+                                <i class="fas fa-cloud-upload-alt fa-2x text-muted mb-2"></i>
+                                <div class="mb-2">{{ form.file }}</div>
+                                <small class="text-muted d-block">Fichier chiffré de bout en bout.</small>
+                            </div>
+                        </div>
+
+                        <div class="d-grid mt-4">
+                            <button type="submit" class="btn btn-primary py-3 fw-bold rounded-3 shadow-sm">
+                                <i class="fas fa-paper-plane me-2"></i>Envoyer le message
+                            </button>
+                        </div>
+
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
+<script>
+    $(document).ready(function() {
+        // Transformation de la liste en barre de recherche
+        $('#userSearch').select2({
+            theme: 'bootstrap-5',
+            placeholder: "Tapez le nom d'un collaborateur...",
+            allowClear: true,
+            width: '100%',
+            language: {
+                noResults: function() {
+                    return "Aucun utilisateur trouvé.";
+                },
+                searching: function() {
+                    return "Recherche en cours...";
+                }
+            }
+        });
+    });
+</script>
+
+<style>
+    /* Styling des champs standards */
+    .form-control, .form-select {
+        padding: 12px;
+        border-radius: 8px;
+        border: 1px solid #d1d5db;
+    }
+    .form-control:focus {
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px rgba(224, 122, 95, 0.15);
+    }
+
+    /* Correction visuelle pour Select2 avec Bootstrap 5 input-group */
+    .input-group > .select2-container--bootstrap-5 {
+        flex: 1 1 auto;
+        width: 1% !important;
+    }
+    .input-group > .select2-container--bootstrap-5 .select2-selection {
+        border-top-left-radius: 0;
+        border-bottom-left-radius: 0;
+    }
+</style>
+{% endblock %}

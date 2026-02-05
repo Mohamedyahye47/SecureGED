@@ -1,0 +1,48 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container py-4">
+    <h2 class="mb-4">Boîte de réception - {{ department.name }}</h2>
+
+    <div class="card shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>État</th>
+                        <th>Expéditeur</th>
+                        <th>Sujet</th>
+                        <th>Message (Déchiffré)</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for msg in messages_list %}
+                    <tr class="{% if not msg.is_read %}fw-bold bg-light{% endif %}">
+                        <td>
+                            {% if msg.is_read %}
+                                <span class="badge bg-secondary">Lu</span>
+                            {% else %}
+                                <span class="badge bg-success">Nouveau</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ msg.sender.get_full_name|default:msg.sender.username }}</td>
+                        <td>{{ msg.subject }}</td>
+                        <td>
+                            {# Utilisation de la propriété de déchiffrement du modèle #}
+                            {{ msg.get_decrypted_message|truncatechars:50 }}
+                        </td>
+                        <td>
+                            <a href="{% url 'staff_reply' msg.id %}" class="btn btn-sm btn-primary">
+                                <i class="fas fa-reply"></i> Répondre
+                            </a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="5" class="text-center py-4">Aucun message.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

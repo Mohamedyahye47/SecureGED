@@ -1,445 +1,618 @@
-from django.shortcuts import render
+"""documents/views.py"""
+import logging
+from pathlib import Path
+from datetime import datetime
+import csv
 
-# Create your views here.
-"""
-Secure GED Views
-"""
-from django.shortcuts import render, redirect, get_object_or_404
+from django.conf import settings
+from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
-from django.contrib import messages
-from django.http import HttpResponse, HttpResponseForbidden
-from django.utils import timezone
-from django.db import transaction
+from django.contrib.auth.models import User
 from django.core.paginator import Paginator
+from django.db.models import Q
+from django.http import HttpResponse, HttpResponseForbidden
+from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
+from django.core.mail import send_mail
 
-from .models import Document, UserProfile, AccessLog
-from .security import FileIngestionPipeline, EncryptionManager
-from .security_decorators import (
-    deny_by_default, mfa_required, require_clearance,
-    regenerate_session_id, log_audit_action, get_client_ip
-)
-from .forms import LoginForm, DocumentUploadForm
+from .audit_models import WORMAuditLog
+from .forms import DocumentUploadForm, LoginForm, PrivateMessageForm
+from .models import Department, Document, UserProfile
+from .security import EncryptionManager
+from .antivirus_scanner import AntivirusScanner
 
+logger = logging.getLogger(__name__)
+
+
+# -----------------
+# UTILITAIRES
+# -----------------
 
 def get_client_ip(request):
-    """Extract client IP address"""
-    x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+    """Récupère l'adresse IP du client."""
+    x_forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR")
     if x_forwarded_for:
-        ip = x_forwarded_for.split(',')[0]
-    else:
-        ip = request.META.get('REMOTE_ADDR')
-    return ip
+        return x_forwarded_for.split(",")[0].strip()
+    return request.META.get("REMOTE_ADDR", "unknown")
 
 
-def log_access(document, user, action, request, success=True, details=''):
-    """Log document access"""
-    AccessLog.objects.create(
-        document=document,
-        user=user,
-        action=action,
-        ip_address=get_client_ip(request),
-        user_agent=request.META.get('HTTP_USER_AGENT', '')[:500],
-        success=success,
-        details=details
+def log_access(document, user, action, request, success=True, details=""):
+    """Enregistre l'activité dans le journal d'audit WORM immuable."""
+    try:
+        WORMAuditLog.create_log(
+            user=user if user and getattr(user, "is_authenticated", False) else None,
+            action=action,
+            ip_address=get_client_ip(request),
+            user_agent=request.META.get("HTTP_USER_AGENT", "")[:500],
+            success=success,
+            details=details,
+            document=document,
+            classification_level=document.classification_level if document else None,
+        )
+    except Exception as e:
+        logger.error(f"Erreur Audit Log : {e}")
+
+
+# Dans documents/views.py
+
+def require_approved_user(view_func):
+    """
+    Bloque l'accès si l'utilisateur n'est pas approuvé.
+    Laisse passer les STAFFS même s'ils sont 'Pending'.
+    """
+    def _wrapped(request, *args, **kwargs):
+        if request.user.is_authenticated:
+            # Le Superuser passe toujours
+            if request.user.is_superuser:
+                return redirect("admin:auth_user_changelist")
+
+            profile, _ = UserProfile.objects.get_or_create(user=request.user)
+
+            # === LA CORRECTION EST ICI ===
+            # On autorise si : C'est approuvé OU C'est un Staff
+            is_authorized = profile.is_approved() or profile.is_department_staff
+
+            if not is_authorized:
+                # Exceptions pour ne pas bloquer la déconnexion
+                if request.resolver_match.url_name in ['user_profile', 'logout', 'login']:
+                    return view_func(request, *args, **kwargs)
+
+                # Redirection vers la page "En attente" ou Profil
+                messages.warning(request, "🔒 Compte en attente de validation.")
+                return redirect("user_profile")
+
+        return view_func(request, *args, **kwargs)
+
+    return _wrapped
+
+
+def save_secure_document(request, uploaded_file, level, title, description, department=None, target_user=None):
+    """
+    Fonction Helper pour gérer le scan AV, le chiffrement et la sauvegarde BDD.
+    Utilisée par l'Upload Standard et la Messagerie.
+    """
+    # 1. Préparation dossier
+    upload_dir = Path(settings.MEDIA_ROOT) / "documents" / "uploads"
+    upload_dir.mkdir(parents=True, exist_ok=True)
+
+    raw = uploaded_file.read()
+
+    # 2. Scan Antivirus
+    scanner = AntivirusScanner()
+    scan_result = scanner.scan_bytes(raw, uploaded_file.name)
+
+    if scan_result['status'] == 'infected':
+        msg = f"MALWARE: {scan_result.get('threat_name', 'Inconnu')}"
+        logger.warning(f"{msg} dans {uploaded_file.name} par {request.user.username}")
+        log_access(None, request.user, "upload_reject", request, False, msg)
+        messages.error(request, f"🦠 Fichier rejeté : Virus détecté ({scan_result.get('threat_name')}).")
+        return None
+    elif scan_result['status'] == 'error':
+        messages.error(request, "❌ Erreur lors de l'analyse antivirus.")
+        return None
+
+    # 3. Chiffrement
+    manager = EncryptionManager()
+    encrypted = manager.encrypt_file(raw)
+
+    safe_name = f"{timezone.now().timestamp()}_{uploaded_file.name}"
+    file_path = upload_dir / safe_name
+    file_path.write_bytes(encrypted)
+
+    # 4. Création en Base
+    doc = Document(
+        original_filename=uploaded_file.name,
+        file_path=str(file_path),
+        file_size=len(encrypted),
+        mime_type=getattr(uploaded_file, "content_type", "application/octet-stream"),
+        uploaded_by=request.user,
+        department=department,
+        target_user=target_user,
+        classification_level=level,
+        is_encrypted=True,
+        status="approved",
+    )
+    doc.set_title(title or uploaded_file.name)
+    doc.set_description(description or "")
+    doc.compute_integrity_fields(raw)
+    doc.save()
+
+    # Log succès
+    log_access(doc, request.user, "upload", request, True, f"Niveau: {doc.get_classification_level_display()}")
+    return doc
+
+
+# -----------------
+# VUES PUBLIQUES & AUTH
+# -----------------
+
+def public_documents_view(request):
+    if request.user.is_authenticated and request.user.is_superuser:
+        return redirect("admin:auth_user_changelist")
+
+    public_docs = (
+        Document.objects.filter(
+            status="approved",
+            classification_level=Document.Classification.PUBLIC
+        )
+        .select_related("uploaded_by")
+        .order_by("-uploaded_at")
     )
 
+    paginator = Paginator(public_docs, 10)
+    page_obj = paginator.get_page(request.GET.get("page"))
 
-def can_view_document(user, document):
-    """
-    Détermine si un utilisateur peut voir un document selon son niveau de classification
-    
-    Niveaux:
-    1 - Public: Tous les utilisateurs authentifiés
-    2 - Interne: Tous les utilisateurs
-    3 - Confidentiel: Staff (managers) et au-dessus
-    4 - Secret: Superusers (admins) uniquement
-    """
-    classification = document.classification_level
-    
-    # Niveau 1 (Public) : Tous les utilisateurs authentifiés
-    if classification == '1':
-        return True
-    
-    # Niveau 2 (Interne) : Tous les utilisateurs
-    if classification == '2':
-        return True
-    
-    # Niveau 3 (Confidentiel) : Staff et admins
-    if classification == '3':
-        return user.is_staff or user.is_superuser
-    
-    # Niveau 4 (Secret) : Admins uniquement
-    if classification == '4':
-        return user.is_superuser
-    
-    return False
+    return render(request, "public_documents.html", {
+        "documents": page_obj,
+        "page_obj": page_obj,
+        "paginator": paginator,
+        "is_paginated": page_obj.has_other_pages(),
+    })
 
 
 def login_view(request):
-    """
-    Secure login with brute force protection and session hardening.
-    - Rate limiting with progressive delays
-    - MFA enforcement checks (stub for future integration)
-    - Session ID regeneration after authentication
-    """
     if request.user.is_authenticated:
-        return redirect('dashboard')
-    
-    if request.method == 'POST':
+        if request.user.is_superuser:
+            return redirect("admin:auth_user_changelist")
+        return redirect("dashboard")
+
+    if request.method == "POST":
         form = LoginForm(request.POST)
-        
         if form.is_valid():
-            username = form.cleaned_data['username']
-            password = form.cleaned_data['password']
-            
+            username = form.cleaned_data["username"]
+            password = form.cleaned_data["password"]
+
             try:
-                from django.contrib.auth.models import User
-                user = User.objects.get(username=username)
-                profile = user.profile
-                
-                # Check if account is locked
+                user_obj = User.objects.get(username=username)
+
+                # Bypass profil pour superuser
+                if user_obj.is_superuser:
+                    user = authenticate(request, username=username, password=password)
+                    if user:
+                        login(request, user)
+                        return redirect("admin:auth_user_changelist")
+
+                profile, _ = UserProfile.objects.get_or_create(user=user_obj)
+
                 if profile.is_account_locked():
-                    messages.error(request, 'Compte verrouillé. Réessayez plus tard.')
-                    return render(request, 'login.html', {'form': form})
-                
-                # Authenticate
+                    messages.error(request, "🔒 Compte verrouillé temporairement.")
+                    return render(request, "login.html", {"form": form})
+
                 user = authenticate(request, username=username, password=password)
-                
-                if user is not None:
-                    # MFA check: if enabled, user must verify before session creation
-                    profile = user.profile
-                    if profile.mfa_enabled:
-                        # TODO: Redirect to MFA verification view
-                        # return redirect('mfa_verify')
-                        pass  # For now, proceed (MFA infra not yet implemented)
-                    
-                    # Regenerate session ID after successful authentication
-                    request.session.flush()  # Clear old session
+
+                if user is not None and user.is_active:
                     login(request, user)
-                    request.session.create()  # Create new session with new ID
-                    
-                    # Mark login time for session age tracking
-                    request.session['login_time'] = timezone.now().timestamp()
-                    request.session.modified = True
-                    
                     profile.reset_failed_attempts()
-                    messages.success(request, 'Connexion réussie!')
-                    
-                    # Log successful authentication
-                    AccessLog.objects.create(
-                        document=None,
-                        user=user,
-                        action='login',
-                        ip_address=get_client_ip(request),
-                        user_agent=request.META.get('HTTP_USER_AGENT', '')[:500],
-                        success=True,
-                        details='Successful authentication'
-                    )
-                    
-                    return redirect('dashboard')
-                else:
-                    profile.increment_failed_attempts()
-                    remaining = 5 - profile.failed_login_attempts
-                    if remaining > 0:
-                        messages.error(request, f'Identifiants invalides. {remaining} tentatives restantes.')
-                    else:
-                        messages.error(request, 'Compte verrouillé pour 15 minutes.')
-                    
-                    # Log failed authentication
-                    try:
-                        AccessLog.objects.create(
-                            document=None,
-                            user=user,
-                            action='login',
-                            ip_address=get_client_ip(request),
-                            user_agent=request.META.get('HTTP_USER_AGENT', '')[:500],
-                            success=False,
-                            details=f'Failed attempt {profile.failed_login_attempts}'
-                        )
-                    except:
-                        pass  # Log creation is non-critical
-                    
+                    log_access(None, user, "login", request, True, "Succès")
+                    return redirect("dashboard")
+
+                profile.increment_failed_attempts()
+                messages.error(request, "❌ Identifiants invalides.")
+                log_access(None, user_obj, "login", request, False, "Echec Auth")
+
             except User.DoesNotExist:
-                messages.error(request, 'Identifiants invalides')
-                # Log failed authentication attempt (no user found)
-                AccessLog.objects.create(
-                    document=None,
-                    user=None,
-                    action='login',
-                    ip_address=get_client_ip(request),
-                    user_agent=request.META.get('HTTP_USER_AGENT', '')[:500],
-                    success=False,
-                    details=f'User not found: {username}'
-                )
+                messages.error(request, "❌ Identifiants invalides")
     else:
         form = LoginForm()
-    
-    return render(request, 'login.html', {'form': form})
+
+    return render(request, "login.html", {"form": form})
 
 
 def logout_view(request):
-    """
-    Logout user and clear session securely.
-    Logs the logout event for audit trail.
-    """
-    if request.user.is_authenticated:
-        user = request.user
-        ip = get_client_ip(request)
-        
-        # Log logout event
-        AccessLog.objects.create(
-            document=None,
-            user=user,
-            action='logout',
-            ip_address=ip,
-            user_agent=request.META.get('HTTP_USER_AGENT', '')[:500],
-            success=True,
-            details='User logout'
-        )
-    
+    if request.user.is_authenticated and not request.user.is_superuser:
+        log_access(None, request.user, "logout", request, True)
     logout(request)
-    request.session.flush()  # Ensure complete session cleanup
-    messages.success(request, 'Déconnexion réussie.')
-    return redirect('login')
+    messages.success(request, "👋 Déconnexion réussie.")
+    return redirect("login")
 
+
+# -----------------
+# DASHBOARD
+# -----------------
 
 @login_required
+@require_approved_user
 def dashboard_view(request):
-    """Main dashboard - Affiche uniquement les documents accessibles par l'utilisateur"""
-    
-    # Documents uploadés par l'utilisateur
-    user_documents = Document.objects.filter(
-        uploaded_by=request.user,
-        status='approved'
-    ).order_by('-uploaded_at')
-    
-    # Documents accessibles selon le niveau de classification
-    all_accessible_docs = Document.objects.filter(
-        status='approved'
-    ).exclude(uploaded_by=request.user).order_by('-uploaded_at')
-    
-    # Filtrer selon les permissions
-    accessible_docs = [
-        doc for doc in all_accessible_docs 
-        if can_view_document(request.user, doc)
-    ][:10]
-    
-    # Statistiques
-    total_accessible = len([
-        doc for doc in Document.objects.filter(status='approved')
-        if can_view_document(request.user, doc)
-    ])
-    
-    context = {
-        'user_documents': user_documents,
-        'accessible_documents': accessible_docs,
-        'total_accessible': total_accessible,
-        'clearance_level': request.user.profile.get_clearance_level_display(),
-        'is_admin': request.user.is_superuser,
-        'is_staff': request.user.is_staff,
-    }
-    
-    return render(request, 'dashboard.html', context)
+    profile, _ = UserProfile.objects.get_or_create(user=request.user)
 
+    # 1. Public
+    q = Q(status="approved", classification_level=Document.Classification.PUBLIC)
+
+    # 2. Département (Automatique)
+    if profile.department_id:
+        # Interne : Visible par tout le département
+        q |= Q(
+            status="approved",
+            classification_level=Document.Classification.INTERNAL,
+            department_id=profile.department_id,
+        )
+        # Secret : Visible seulement par le staff du département
+        if profile.is_department_staff:
+            q |= Q(
+                status="approved",
+                classification_level=Document.Classification.SECRET,
+                department_id=profile.department_id,
+            )
+
+    # 3. Documents Personnels (Reçus)
+    q |= Q(
+        status="approved",
+        classification_level=Document.Classification.PERSONAL,
+        target_user=request.user
+    )
+
+    accessible_docs = (
+        Document.objects.filter(q)
+        .distinct()
+        .select_related("uploaded_by", "department", "target_user")
+        .order_by("-uploaded_at")[:10]
+    )
+
+    # Documents que j'ai uploadés
+    my_docs = (
+        Document.objects.filter(uploaded_by=request.user)
+        .select_related("department", "target_user")
+        .order_by("-uploaded_at")[:5]
+    )
+
+    total_accessible = Document.objects.filter(q).distinct().count() + my_docs.count()
+
+    return render(request, "dashboard.html", {
+        "user_documents": my_docs,
+        "accessible_documents": accessible_docs,
+        "total_accessible": total_accessible,
+        "department": profile.department,
+        "is_staff": profile.is_department_staff,
+        "is_admin": False,
+    })
+
+
+# -----------------
+# UPLOAD ORGANISATIONNEL (Sans 'Personnel')
+# -----------------
 
 @login_required
+@require_approved_user
 def document_upload_view(request):
-    """Upload document with security pipeline"""
-    if request.method == 'POST':
+    """
+    Permet d'uploader Public, Interne, Secret.
+    Le département est assigné automatiquement.
+    """
+    profile, _ = UserProfile.objects.get_or_create(user=request.user)
+
+    if request.method == "POST":
         form = DocumentUploadForm(request.POST, request.FILES)
-        
         if form.is_valid():
-            uploaded_file = request.FILES['file']
-            classification = form.cleaned_data['classification_level']
-            
-            # Vérifier si l'utilisateur peut uploader à ce niveau
-            if classification == '4' and not request.user.is_superuser:
-                messages.error(request, '❌ Seuls les admins peuvent créer des documents "Secret"')
-                return render(request, 'document_upload.html', {'form': form})
-            
-            if classification == '3' and not (request.user.is_staff or request.user.is_superuser):
-                messages.error(request, '❌ Seul le personnel autorisé peut créer des documents "Confidentiel"')
-                return render(request, 'document_upload.html', {'form': form})
-            
-            # Process through security pipeline
-            pipeline = FileIngestionPipeline()
-            result = pipeline.process_upload(
-                uploaded_file,
-                request.user,
-                {
-                    'title': form.cleaned_data['title'],
-                    'description': form.cleaned_data['description'],
-                    'classification_level': form.cleaned_data['classification_level'],
-                }
-            )
-            
-            if result['status'] == 'approved':
-                # Create document record
-                with transaction.atomic():
-                    document = Document.objects.create(
-                        title=form.cleaned_data['title'],
-                        description=form.cleaned_data['description'],
-                        classification_level=form.cleaned_data['classification_level'],
-                        original_filename=result['filename'],
-                        file_path=result['file_path'],
-                        file_size=result['file_size'],
-                        mime_type=result['mime_type'],
-                        file_hash=result['file_hash'],
-                        status='approved',
-                        is_encrypted=True,
-                        uploaded_by=request.user
-                    )
-                    
-                    # Log upload
-                    log_access(document, request.user, 'upload', request, True, 
-                              'Document uploaded and encrypted')
-                
-                messages.success(request, '✅ Document téléchargé avec succès!')
-                return redirect('document_detail', document_id=document.id)
-            else:
-                messages.error(request, f"❌ Échec: {result.get('error', 'Erreur inconnue')}")
+            try:
+                uploaded_file = request.FILES["file"]
+                level = form.cleaned_data["classification_level"] # C'est une string ici
+
+                department = None
+
+                # Logique d'assignation auto du département
+                if level in (Document.Classification.INTERNAL, Document.Classification.SECRET):
+                    department = profile.department
+                    if not department:
+                        messages.error(request, "❌ Impossible : Vous n'avez pas de département assigné.")
+                        return render(request, "document_upload.html", {"form": form})
+
+                # Appel de la fonction de sauvegarde sécurisée
+                doc = save_secure_document(
+                    request=request,
+                    uploaded_file=uploaded_file,
+                    level=level,
+                    title=form.cleaned_data["title"],
+                    description=form.cleaned_data["description"],
+                    department=department,
+                    target_user=None # Pas de cible user ici
+                )
+
+                if doc:
+                    messages.success(request, f"✅ Document '{doc.get_title()}' déposé avec succès.")
+                    return redirect("dashboard")
+
+            except Exception as e:
+                logger.error(f"Erreur Upload : {e}", exc_info=True)
+                messages.error(request, f"❌ Erreur technique : {e}")
+
     else:
         form = DocumentUploadForm()
-    
-    return render(request, 'document_upload.html', {'form': form})
 
+    return render(request, "document_upload.html", {"form": form})
+
+
+# -----------------
+# MESSAGERIE / CONTACT (Avec Fichier Personnel)
+# -----------------
 
 @login_required
+def contact_view(request):
+    """
+    Permet d'envoyer un message + Fichier Personnel optionnel.
+    Filtre : Exclut les superusers et l'utilisateur lui-même.
+    """
+    # 1. Récupération des utilisateurs pour le menu de recherche (Select2)
+    # On exclut les superusers (admins techniques) et soi-même
+    users = User.objects.filter(
+        is_active=True,
+        is_superuser=False
+    ).exclude(
+        id=request.user.id
+    ).select_related(
+        'profile',
+        'profile__department'
+    ).order_by('last_name', 'first_name')
+
+    if request.method == 'POST':
+        # On passe 'users' au formulaire s'il a besoin de valider le choix,
+        # mais ici on traite la requête manuellement pour plus de flexibilité avec Select2
+        form = PrivateMessageForm(request.POST, request.FILES, user=request.user)
+
+        # Note: PrivateMessageForm attend 'recipient' qui est validé par le queryset défini dans son __init__.
+        # Assurez-vous que le queryset du form correspond à celui de la vue pour éviter des erreurs de validation.
+
+        if form.is_valid():
+            recipient = form.cleaned_data['recipient']
+            subject = form.cleaned_data['subject']
+            message_text = form.cleaned_data['message']
+            uploaded_file = form.cleaned_data['file']
+
+            try:
+                doc_link_text = ""
+
+                # 2. Traitement du fichier joint (si présent)
+                if uploaded_file:
+                    doc = save_secure_document(
+                        request=request,
+                        uploaded_file=uploaded_file,
+                        level=Document.Classification.PERSONAL,
+                        title=subject,  # Le titre du doc = sujet du message
+                        description=message_text,
+                        department=None,
+                        target_user=recipient  # Assignation au destinataire
+                    )
+
+                    if not doc:
+                        # Si échec (virus), on arrête
+                        return redirect('contact_view')
+
+                    doc_link_text = f"\n\n📎 PIÈCE JOINTE SÉCURISÉE : {doc.get_title()}"
+                    log_access(doc, request.user, "contact_file", request, True, f"Envoyé à {recipient.username}")
+
+                # 3. Envoi Email
+                email_subject = f"[Secure GED] Message de {request.user.get_full_name() or request.user.username}"
+                email_body = (
+                    f"Bonjour {recipient.first_name},\n\n"
+                    f"Vous avez reçu un message de {request.user.get_full_name()} ({request.user.email}).\n\n"
+                    f"OBJET : {subject}\n\n"
+                    f"MESSAGE :\n{message_text}\n"
+                    f"{doc_link_text}\n\n"
+                    f"Accédez à la plateforme : {getattr(settings, 'SITE_URL', 'http://localhost:8000')}"
+                )
+
+                send_mail(
+                    email_subject,
+                    email_body,
+                    settings.DEFAULT_FROM_EMAIL,
+                    [recipient.email],
+                    fail_silently=False
+                )
+
+                # 4. Log Audit pour le message simple (si pas de fichier)
+                if not uploaded_file:
+                    WORMAuditLog.create_log(
+                        user=request.user,
+                        action="contact",
+                        ip_address=get_client_ip(request),
+                        success=True,
+                        details=f"Message à {recipient.username}: {subject}"
+                    )
+
+                messages.success(request, f"✅ Message envoyé à {recipient.get_full_name()}.")
+                return redirect('dashboard')
+
+            except Exception as e:
+                logger.error(f"Erreur Contact : {e}", exc_info=True)
+                messages.error(request, "❌ Une erreur est survenue lors de l'envoi.")
+
+    else:
+        form = PrivateMessageForm(user=request.user)
+
+    # On passe la liste 'users' au template pour peupler le <select> manuellement si besoin
+    # ou pour l'utiliser avec Select2
+    return render(request, "contact.html", {'form': form, 'users': users})
+
+
+# -----------------
+# DÉTAIL & DOWNLOAD
+# -----------------
+
+@login_required
+@require_approved_user
 def document_detail_view(request, document_id):
-    """View document details - Vérifie les permissions"""
     document = get_object_or_404(Document, id=document_id)
-    
-    # Vérifier les permissions selon le niveau de classification
-    if not can_view_document(request.user, document):
-        log_access(document, request.user, 'view', request, False, 
-                   f'Access denied - Classification {document.get_classification_level_display()}, User level insufficient')
-        
-        # Message personnalisé selon le niveau
-        if document.classification_level == '4':
-            messages.error(request, '🚨 Accès refusé : Ce document "Secret" nécessite des privilèges administrateur')
-        elif document.classification_level == '3':
-            messages.error(request, '🔒 Accès refusé : Ce document "Confidentiel" nécessite une autorisation de niveau staff')
-        else:
-            messages.error(request, '❌ Accès refusé : Habilitation insuffisante')
-        
-        return HttpResponseForbidden(
-            render(request, 'access_denied.html', {
-                'document': document,
-                'required_level': document.get_classification_level_display()
-            })
-        )
-    
-    # Log successful access
-    log_access(document, request.user, 'view', request, True, 
-              f'Viewed {document.get_classification_level_display()} document')
-    document.last_accessed = timezone.now()
-    document.save()
-    
-    # Get access logs for this document
-    recent_logs = AccessLog.objects.filter(document=document).order_by('-timestamp')[:10]
-    
-    context = {
-        'document': document,
-        'recent_logs': recent_logs,
-        'can_download': can_view_document(request.user, document),
-        'user_can_view': True,
-    }
-    
-    return render(request, 'document_detail.html', context)
+
+    if not document.can_access(request.user):
+        log_access(document, request.user, "view", request, False, "Accès Refusé")
+        return HttpResponseForbidden(render(request, "access_denied.html", {"document": document}))
+
+    log_access(document, request.user, "view", request, True)
+
+    profile, _ = UserProfile.objects.get_or_create(user=request.user)
+    show_logs = profile.is_department_staff
+
+    recent_logs = []
+    if show_logs:
+        recent_logs = WORMAuditLog.objects.filter(document_id=document.id).select_related("user").order_by("-timestamp")[:10]
+
+    return render(request, "document_detail.html", {
+        "document": document,
+        "recent_logs": recent_logs,
+        "can_download": True,
+        "show_logs": show_logs,
+        "back_url_name": "dashboard",
+    })
 
 
 @login_required
+@require_approved_user
 def document_download_view(request, document_id):
-    """Secure document download with on-the-fly decryption"""
     document = get_object_or_404(Document, id=document_id)
-    
-    # Verify access selon niveau de classification
-    if not can_view_document(request.user, document):
-        log_access(document, request.user, 'download', request, False, 
-                   f'Download denied - Classification {document.get_classification_level_display()}')
-        messages.error(request, '❌ Téléchargement refusé : Habilitation insuffisante')
-        return HttpResponseForbidden('Accès refusé')
-    
+
+    if not document.can_access(request.user):
+        log_access(document, request.user, "download", request, False, "Refusé")
+        messages.error(request, "❌ Accès refusé.")
+        return redirect("dashboard")
+
     try:
-        # Decrypt file
-        encryptor = EncryptionManager()
-        decrypted_content = encryptor.decrypt_file(
-            document.file_path, 
-            document.classification_level
-        )
-        
-        # Log download
-        log_access(document, request.user, 'download', request, True, 
-                   f'Document {document.get_classification_level_display()} decrypted and downloaded')
-        
-        # Stream to browser
-        response = HttpResponse(
-            decrypted_content,
-            content_type=document.mime_type
-        )
-        
-        # Set headers for inline viewing
-        response['Content-Disposition'] = f'inline; filename="{document.original_filename}"'
-        response['X-Content-Type-Options'] = 'nosniff'
-        response['X-Frame-Options'] = 'DENY'
-        
-        return response
-        
+        file_path = Path(document.file_path).resolve()
+
+        # Sécurité Path Traversal
+        if not str(file_path).startswith(str(Path(settings.MEDIA_ROOT).resolve())):
+            return HttpResponse("Erreur chemin fichier.", status=404)
+
+        if not file_path.exists():
+            return HttpResponse("Fichier introuvable.", status=404)
+
+        # Déchiffrement
+        manager = EncryptionManager()
+        decrypted_data = manager.decrypt_file(file_path.read_bytes())
+
+        # Vérification intégrité
+        document.verify_integrity(decrypted_data)
+
+        log_access(document, request.user, "download", request, True)
+
+        resp = HttpResponse(decrypted_data, content_type=document.mime_type)
+        resp["Content-Disposition"] = f'inline; filename="{document.original_filename}"'
+        return resp
+
     except Exception as e:
-        log_access(document, request.user, 'download', request, False, 
-                   f'Error: {str(e)}')
-        messages.error(request, f'❌ Erreur lors de la récupération du document: {str(e)}')
-        return HttpResponse('Erreur lors de la récupération du document', status=500)
+        logger.error(f"DL Error: {e}")
+        messages.error(request, "Erreur technique lors du téléchargement.")
+        return redirect("dashboard")
 
 
-@login_required
-def document_list_view(request):
-    """Liste tous les documents accessibles par l'utilisateur"""
-    
-    # Tous les documents approuvés
-    all_documents = Document.objects.filter(status='approved').order_by('-uploaded_at')
-    
-    # Filtrer selon les permissions
-    visible_documents = [
-        doc for doc in all_documents 
-        if can_view_document(request.user, doc)
-    ]
-    
-    # Pagination
-    paginator = Paginator(visible_documents, 20)
-    page_number = request.GET.get('page')
-    page_obj = paginator.get_page(page_number)
-    
-    context = {
-        'documents': page_obj,
-        'page_obj': page_obj,
-        'total_documents': len(visible_documents),
-    }
-    
-    return render(request, 'document_list.html', context)
-
+# -----------------
+# AUDIT & GESTION USERS
+# -----------------
 
 @login_required
 def audit_log_view(request):
-    """Vue des logs d'audit avec pagination (réservée aux admins)"""
-    if not request.user.is_staff:
-        messages.error(request, '❌ Accès refusé : vous devez être administrateur.')
+    profile = get_object_or_404(UserProfile, user=request.user)
+
+    # Sécurité : Seul le staff a accès
+    if not profile.is_department_staff:
+        messages.error(request, "Accès non autorisé.")
         return redirect('dashboard')
 
-    # Tous les logs, triés du plus récent au plus ancien
-    logs_list = AccessLog.objects.all().order_by('-timestamp')
+    # 1. Base : Logs concernant le département du staff
+    # On récupère les IDs des documents du département pour filtrer les logs associés
+    dept_docs = Document.objects.filter(department=profile.department)
+    doc_ids = [str(d.id) for d in dept_docs]
 
-    # Pagination
-    paginator = Paginator(logs_list, 50)
+    logs = WORMAuditLog.objects.filter(
+        Q(user__profile__department=profile.department) |  # Actions des utilisateurs du dept
+        Q(document_id__in=doc_ids)  # Actions sur les docs du dept
+    ).order_by('-timestamp')
+
+    # 2. APPLICATION DES FILTRES (CORRECTION MAJEURE)
+    search_query = request.GET.get('search')
+    if search_query:
+        logs = logs.filter(
+            Q(user__username__icontains=search_query) |
+            Q(ip_address__icontains=search_query) |
+            Q(details__icontains=search_query)
+        )
+
+    action = request.GET.get('action')
+    if action:
+        logs = logs.filter(action=action)
+
+    success = request.GET.get('success')
+    if success == 'true':
+        logs = logs.filter(success=True)
+    elif success == 'false':
+        logs = logs.filter(success=False)
+
+    date_from = request.GET.get('date_from')
+    if date_from:
+        logs = logs.filter(timestamp__gte=date_from)
+
+    date_to = request.GET.get('date_to')
+    if date_to:
+        logs = logs.filter(timestamp__lte=date_to)
+
+    # 3. Pagination
+    paginator = Paginator(logs, 20)
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
 
-    context = {
-        'logs': page_obj,
-        'page_obj': page_obj,
-        'paginator': paginator,
-        'is_paginated': page_obj.has_other_pages(),
-    }
+    return render(request, "staff/audit_log.html", {
+        "page_obj": page_obj,  # Le template attend page_obj maintenant
+    })
 
-    return render(request, 'audit_log.html', context)
+@login_required
+def manage_users_view(request):
+    """
+    Gestion de l'équipe : Voir, Bloquer, Activer.
+    URL name: 'manage_users'
+    """
+    profile = get_object_or_404(UserProfile, user=request.user)
+
+    # SÉCURITÉ : Seul le Staff a accès
+    if not profile.is_department_staff:
+        messages.error(request, "Accès refusé. Espace réservé aux responsables.")
+        return redirect('dashboard')
+
+    # On récupère les membres du MÊME département (sauf soi-même et admin)
+    users = User.objects.filter(
+        profile__department=profile.department,
+        is_superuser=False
+    ).exclude(id=request.user.id).select_related('profile')
+
+    if request.method == "POST":
+        user_id = request.POST.get('user_id')
+        target = get_object_or_404(User, id=user_id)
+
+        # SÉCURITÉ CRITIQUE : Vérifier que la cible est bien dans le MÊME département
+        if target.profile.department == profile.department:
+            action = request.POST.get('action')
+
+            if action == "block":
+                target.is_active = False
+                target.save()
+                messages.warning(request, f"🚫 Accès bloqué pour {target.username}.")
+
+            elif action == "activate":  # ou "unblock" selon votre template
+                target.is_active = True
+                target.save()
+                messages.success(request, f"✅ Accès réactivé pour {target.username}.")
+        else:
+            messages.error(request, "Vous ne pouvez pas modifier un utilisateur d'un autre service.")
+
+        return redirect('manage_users')  # On recharge la page
+
+    # On renvoie vers le template spécifique (Vérifiez que ce fichier existe !)
+    return render(request, 'staff/department_users.html', {'team_members': users})

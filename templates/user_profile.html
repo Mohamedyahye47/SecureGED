@@ -1,0 +1,244 @@
+{% extends 'base.html' %}
+
+{% block title %}Mon Profil{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+
+    <div class="d-flex align-items-center justify-content-between mb-4">
+        <div>
+            <h2 class="fw-bold mb-1">Paramètres du compte</h2>
+            <p class="text-muted">Gérez vos informations et votre demande d'accès.</p>
+        </div>
+        {% if is_approved %}
+        <a href="{% url 'dashboard' %}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left me-2"></i>Tableau de bord
+        </a>
+        {% endif %}
+    </div>
+
+    {# ✅ CORRECTION : ALERTE UNIQUEMENT pour utilisateurs NON-STAFF non approuvés #}
+    {% if not is_approved and not profile.is_department_staff %}
+    <div class="alert alert-warning shadow-sm border-0 border-start border-4 border-warning mb-4" role="alert">
+        <div class="d-flex">
+            <div class="me-3"><i class="fas fa-user-lock fa-2x text-warning"></i></div>
+            <div>
+                <h5 class="alert-heading fw-bold">Statut du compte : Restreint</h5>
+
+                {% if missing_info %}
+                    <p class="mb-0">
+                        <strong>Action requise :</strong> Votre profil est incomplet. Veuillez sélectionner votre
+                        <strong>Département</strong> ci-dessous et cliquer sur "Enregistrer" pour envoyer votre demande.
+                    </p>
+                {% else %}
+                    <p class="mb-0">
+                        <strong>Demande envoyée :</strong> Vos informations sont enregistrées.
+                        Votre compte est en attente de validation par le responsable du département
+                        <strong>{{ profile.department.name }}</strong>.
+                    </p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="row g-4">
+        {# COLONNE GAUCHE : Avatar et infos #}
+        <div class="col-lg-4">
+            <div class="card border-0 shadow-sm text-center h-100 p-4">
+                <div class="mb-3">
+                    {% if profile.profile_picture %}
+                        <img src="{{ profile.profile_picture.url }}" class="rounded-circle object-fit-cover shadow-sm" style="width:120px; height:120px;">
+                    {% else %}
+                        <div class="rounded-circle bg-light d-inline-flex align-items-center justify-content-center text-secondary fw-bold fs-1" style="width:120px; height:120px;">
+                            {{ user.username|make_list|first|upper }}
+                        </div>
+                    {% endif %}
+                </div>
+                <h4 class="fw-bold">{{ user.first_name }} {{ user.last_name }}</h4>
+                <p class="text-muted">@{{ user.username }}</p>
+
+                <div class="mt-2">
+                    {# ✅ CORRECTION : Badge Staff prioritaire #}
+                    {% if profile.is_department_staff %}
+                        <span class="badge bg-purple text-white py-2 px-3">
+                            <i class="fas fa-user-shield me-1"></i>Responsable
+                        </span>
+                    {% elif is_approved %}
+                        <span class="badge bg-success py-2 px-3">Compte Actif</span>
+                    {% else %}
+                        <span class="badge bg-warning text-dark py-2 px-3">En attente</span>
+                    {% endif %}
+                </div>
+
+                {# ✅ INFO OAUTH (si utilisateur Google) #}
+                {% if profile.is_oauth_user %}
+                <div class="alert alert-light border mt-3 text-start">
+                    <div class="d-flex align-items-center">
+                        <i class="fab fa-google fa-2x text-primary me-3"></i>
+                        <div>
+                            <strong class="d-block">Compte Google</strong>
+                            <small class="text-muted">{{ profile.google_email|default:user.email }}</small>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        {# COLONNE DROITE : Formulaire #}
+        <div class="col-lg-8">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white py-3 border-bottom-0">
+                    <h5 class="mb-0 fw-bold"><i class="fas fa-edit me-2 text-primary"></i>Modifier mes informations</h5>
+                </div>
+                <div class="card-body p-4 pt-0">
+                    <form method="post" enctype="multipart/form-data">
+                        {% csrf_token %}
+
+                        {# ✅ Prénom + Nom #}
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold small text-muted">PRÉNOM</label>
+                                {{ form.first_name }}
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold small text-muted">NOM</label>
+                                {{ form.last_name }}
+                            </div>
+                        </div>
+
+                        {# ✅ Email (readonly) #}
+                        <div class="mb-3">
+                            <label class="form-label fw-bold small text-muted">EMAIL</label>
+                            <input type="text" class="form-control bg-light" value="{{ user.email }}" readonly>
+                            {% if profile.is_oauth_user %}
+                                <small class="text-muted">
+                                    <i class="fab fa-google me-1"></i>
+                                    Cet email est lié à votre compte Google
+                                </small>
+                            {% endif %}
+                        </div>
+
+                        {# ✅ TÉLÉPHONE (si disponible) #}
+                        {% if form.phone %}
+                        <div class="mb-3">
+                            <label class="form-label fw-bold small text-muted">TÉLÉPHONE (optionnel)</label>
+                            {{ form.phone }}
+                            <small class="form-text text-muted d-block">Ex: +222 XX XX XX XX</small>
+                        </div>
+                        {% endif %}
+
+                        {# ✅ Département #}
+                        <div class="mb-3">
+                            <label class="form-label fw-bold small text-muted">DÉPARTEMENT <span class="text-danger">*</span></label>
+                            {{ form.department }}
+                            {% if form.department.errors %}
+                                <div class="text-danger small mt-1">{{ form.department.errors }}</div>
+                            {% endif %}
+                            <div class="form-text">
+                                {% if profile.is_department_staff %}
+                                    En tant que responsable, ce champ est informatif.
+                                {% elif not is_approved %}
+                                    Ce choix déterminera à quel responsable votre demande sera envoyée.
+                                {% else %}
+                                    Votre département actuel.
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        {# ✅ Photo de profil #}
+                        <div class="mb-4">
+                            <label class="form-label fw-bold small text-muted">PHOTO DE PROFIL</label>
+                            {{ form.profile_picture }}
+                            <small class="form-text text-muted d-block">Formats acceptés : JPG, PNG (max 2MB)</small>
+                        </div>
+
+                        {# ✅ BOUTON ADAPTATIF (sans Contact pour Staff) #}
+                        <div class="d-flex justify-content-end gap-2">
+                            {# ✅ CORRECTION : Bouton Contact SEULEMENT pour non-staff en attente #}
+                            {% if not is_approved and not profile.is_department_staff %}
+                                <a href="{% url 'contact_department_staff' %}" class="btn btn-outline-secondary">
+                                    <i class="fas fa-envelope me-2"></i>Contacter le responsable
+                                </a>
+                            {% endif %}
+
+                            <button type="submit" class="btn btn-primary px-4 py-2 fw-bold">
+                                {% if profile.is_department_staff %}
+                                    <i class="fas fa-save me-2"></i>Enregistrer
+                                {% elif not is_approved %}
+                                    <i class="fas fa-paper-plane me-2"></i>Soumettre ma demande
+                                {% else %}
+                                    <i class="fas fa-save me-2"></i>Enregistrer
+                                {% endif %}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            {# ✅ CHANGEMENT MOT DE PASSE (si pas OAuth) #}
+            {% if not profile.is_oauth_user %}
+            <div class="card border-0 shadow-sm mt-4">
+                <div class="card-body p-4 d-flex align-items-center justify-content-between">
+                    <div class="d-flex align-items-center">
+                        <div class="bg-light rounded p-3 me-3 text-primary">
+                            <i class="fas fa-key fa-lg"></i>
+                        </div>
+                        <div>
+                            <h6 class="fw-bold mb-1">Mot de passe</h6>
+                            <p class="text-muted small mb-0">Nous recommandons de changer votre mot de passe périodiquement.</p>
+                        </div>
+                    </div>
+                    <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#changePasswordModal">
+                        Modifier
+                    </button>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+{# ✅ MODAL CHANGEMENT MOT DE PASSE (si pas OAuth) #}
+{% if not profile.is_oauth_user %}
+<div class="modal fade" id="changePasswordModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header border-bottom-0 pb-0">
+                <h5 class="modal-title fw-bold">Changer le mot de passe</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="post" action="{% url 'change_password' %}">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label small text-muted fw-bold">MOT DE PASSE ACTUEL</label>
+                        <input type="password" name="old_password" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small text-muted fw-bold">NOUVEAU MOT DE PASSE</label>
+                        <input type="password" name="new_password1" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small text-muted fw-bold">CONFIRMER</label>
+                        <input type="password" name="new_password2" class="form-control" required>
+                    </div>
+                </div>
+                <div class="modal-footer border-top-0">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Annuler</button>
+                    <button type="submit" class="btn btn-primary">Valider</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<style>
+.bg-purple {
+    background-color: #9333ea !important;
+}
+</style>
+
+{% endblock %}

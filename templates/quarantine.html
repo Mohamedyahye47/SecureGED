@@ -1,0 +1,134 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Quarantine Management{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2 class="fw-bold mb-1">Gestion de la Quarantaine</h2>
+        <p class="text-muted mb-0">Examinez et validez les documents entrants.</p>
+    </div>
+    <span class="badge bg-warning text-dark px-3 py-2 rounded-pill">
+        <i class="fas fa-clock me-2"></i>{{ total_quarantined }} en attente
+    </span>
+</div>
+
+<div class="card">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0" style="min-width: 800px;">
+                <thead class="bg-light">
+                    <tr>
+                        <th class="ps-4 py-3 text-uppercase small fw-bold text-muted">Document</th>
+                        <th class="py-3 text-uppercase small fw-bold text-muted">Méta-données</th>
+                        <th class="py-3 text-uppercase small fw-bold text-muted">Classification</th>
+                        <th class="py-3 text-uppercase small fw-bold text-muted">Uploadé par</th>
+                        <th class="pe-4 py-3 text-end text-uppercase small fw-bold text-muted">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for doc in quarantined_docs %}
+                        <tr>
+                            <td class="ps-4">
+                                <div class="d-flex align-items-center">
+                                    <div class="bg-light rounded p-2 me-3 text-primary">
+                                        <i class="fas fa-file-pdf fa-lg"></i>
+                                    </div>
+                                    <div>
+                                        <div class="fw-bold text-dark">{{ doc.title|truncatechars:30 }}</div>
+                                        <div class="small text-muted font-monospace">{{ doc.original_filename|truncatechars:25 }}</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                <div class="small text-muted">{{ doc.file_size|filesizeformat }}</div>
+                                <div class="small text-muted">{{ doc.uploaded_at|date:"d/m/Y" }}</div>
+                            </td>
+                            <td>
+                                <span class="badge bg-warning bg-opacity-10 text-warning border border-warning border-opacity-25">
+                                    {{ doc.get_classification_level_display }}
+                                </span>
+                            </td>
+                            <td>
+                                <div class="d-flex align-items-center">
+                                    <div class="bg-primary bg-opacity-10 text-primary rounded-circle small me-2 d-flex align-items-center justify-content-center" style="width: 24px; height: 24px;">
+                                        {{ doc.uploaded_by.username|make_list|first|upper }}
+                                    </div>
+                                    <span class="small fw-medium">{{ doc.uploaded_by.username }}</span>
+                                </div>
+                            </td>
+                            <td class="pe-4 text-end">
+                                <button type="button" class="btn btn-sm btn-success me-1" data-bs-toggle="modal" data-bs-target="#approveModal{{ doc.id }}">
+                                    <i class="fas fa-check"></i>
+                                </button>
+                                <button type="button" class="btn btn-sm btn-danger" data-bs-toggle="modal" data-bs-target="#rejectModal{{ doc.id }}">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </td>
+                        </tr>
+
+                        <div class="modal fade" id="approveModal{{ doc.id }}" tabindex="-1" aria-hidden="true">
+                            <div class="modal-dialog modal-dialog-centered">
+                                <div class="modal-content border-0 shadow-lg rounded-4">
+                                    <div class="modal-header border-0 pb-0">
+                                        <h5 class="modal-title fw-bold">Valider le document ?</h5>
+                                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                    </div>
+                                    <form method="POST">
+                                        {% csrf_token %}
+                                        <div class="modal-body">
+                                            <p class="text-muted">Vous êtes sur le point d'approuver <strong>{{ doc.title }}</strong>.</p>
+                                            <div class="alert alert-success bg-success bg-opacity-10 border-0 text-success small">
+                                                <i class="fas fa-info-circle me-2"></i>
+                                                Le fichier sera chiffré et rendu accessible selon les règles de classification.
+                                            </div>
+                                        </div>
+                                        <div class="modal-footer border-0 pt-0">
+                                            <button type="button" class="btn btn-light" data-bs-dismiss="modal">Annuler</button>
+                                            <button type="submit" class="btn btn-success" name="action" value="approve">Confirmer</button>
+                                        </div>
+                                        <input type="hidden" name="document_id" value="{{ doc.id }}">
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="modal fade" id="rejectModal{{ doc.id }}" tabindex="-1" aria-hidden="true">
+                            <div class="modal-dialog modal-dialog-centered">
+                                <div class="modal-content border-0 shadow-lg rounded-4">
+                                    <div class="modal-header border-0 pb-0">
+                                        <h5 class="modal-title fw-bold text-danger">Rejeter le document ?</h5>
+                                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                    </div>
+                                    <form method="POST">
+                                        {% csrf_token %}
+                                        <div class="modal-body">
+                                            <p class="text-muted">Cette action supprimera définitivement <strong>{{ doc.title }}</strong>.</p>
+                                        </div>
+                                        <div class="modal-footer border-0 pt-0">
+                                            <button type="button" class="btn btn-light" data-bs-dismiss="modal">Annuler</button>
+                                            <button type="submit" class="btn btn-danger" name="action" value="reject">Supprimer</button>
+                                        </div>
+                                        <input type="hidden" name="document_id" value="{{ doc.id }}">
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+
+                    {% empty %}
+                        <tr>
+                            <td colspan="5" class="text-center py-5">
+                                <div class="text-muted opacity-50">
+                                    <i class="fas fa-clipboard-check fa-3x mb-3"></i>
+                                    <p>Tout est en ordre. Aucune quarantaine.</p>
+                                </div>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
